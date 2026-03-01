@@ -1,12 +1,19 @@
-import logo from './logo.svg';
-import './App.css';
-import LoginForm from './Components/LoginForm/LoginForm';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import LoginForm from './Components/LoginForm/LoginForm.jsx';
+import ResetPasswordForm from './Components/LoginForm/ResetPasswordForm'; // We will create this next
 
 function App() {
   return (
-    <div>
-      <LoginForm />
-    </div>
+    <Router>
+      <Routes>
+        {/* Default route shows the Login/Register form */}
+        <Route path="/" element={<LoginForm />} />
+        
+        {/* Dynamic route to capture the reset token from the URL */}
+        <Route path="/reset-password/:token" element={<ResetPasswordForm />} />
+      </Routes>
+    </Router>
   );
 }
 
