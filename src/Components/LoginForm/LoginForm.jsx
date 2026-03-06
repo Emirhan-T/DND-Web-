@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import './LoginForm.css';
 import { FaUser, FaLock } from "react-icons/fa";
+import { useNavigate } from 'react-router-dom';
 
 const LoginForm = () => {
+    const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
@@ -77,6 +79,7 @@ const LoginForm = () => {
                 } else {
                     sessionStorage.setItem('token', data.token);
                 }
+                navigate('/main-menu');
             } else {
                 alert("Error: " + data.message);
             }

@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LoginForm from './Components/LoginForm/LoginForm.jsx';
 import ResetPasswordForm from './Components/LoginForm/ResetPasswordForm'; // We will create this next
+import MainMenu from './Components/MainMenu/MainMenu.jsx';
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         
         {/* Dynamic route to capture the reset token from the URL */}
         <Route path="/reset-password/:token" element={<ResetPasswordForm />} />
+        <Route path="/main-menu" element={<MainMenu />} />
       </Routes>
     </Router>
   );
