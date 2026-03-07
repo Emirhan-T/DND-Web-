@@ -60,3 +60,16 @@
     background-color: #fff !important;
     color: #333 !important;
 }
+.main-menu-bg {
+    /* Replace the URL with your own image link or local path */
+    background: url('/src/Components/Assets/mainmenubackgraund.jpg') no-repeat center center;
+    background-size: cover;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    
+    /* Optional: Adds a dark overlay so the menu pops out more */
+    box-shadow: inset 0 0 0 2000px rgba(0, 0, 0, 0.4); 
+}
