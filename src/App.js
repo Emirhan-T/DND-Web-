@@ -4,6 +4,7 @@ import LoginForm from './Components/LoginForm/LoginForm.jsx';
 import ResetPasswordForm from './Components/LoginForm/ResetPasswordForm'; // We will create this next
 import MainMenu from './Components/MainMenu/MainMenu.jsx';
 import CharacterManager from './Components/CharacterManager/CharacterManager.jsx';
+import CharacterSheet from './Components/CraracterSheet/CharacterSheet.jsx';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
         <Route path="/reset-password/:token" element={<ResetPasswordForm />} />
         <Route path="/main-menu" element={<MainMenu />} />
         <Route path="/character-manager" element={<CharacterManager />} />
+        <Route path="/character-sheet" element={<CharacterSheet />} />
       </Routes>
     </Router>
   );

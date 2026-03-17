@@ -40,31 +40,14 @@ const CharacterManager = () => {
                         <p className="slots-info">Slots: <span className="highlight">{usedSlots}/{maxSlots} Used</span></p>
                     </div>
                     <div className="header-right">
-                        <button className="create-btn" onClick={() => alert('Character creation page coming soon!')}>
+                        <button className="create-btn" onClick={() => navigate('/character-sheet')}
+                            disabled={usedSlots >= maxSlots}
+                            >
                             CREATE A CHARACTER
                         </button>
-                        <a href="#" className="download-link">↓ Download a blank character sheet</a>
                     </div>
                 </div>
 
-                {/* Toolbar Section (Search & Sort) */}
-                <div className="manager-toolbar">
-                    <div className="search-box">
-                        <input 
-                            type="text" 
-                            placeholder="🔍 Search by Name, Level, Class, Species..." 
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                    <div className="sort-box">
-                        <select>
-                            <option value="oldest">Created: Oldest</option>
-                            <option value="newest">Created: Newest</option>
-                            <option value="level">Level: High to Low</option>
-                        </select>
-                    </div>
-                </div>
 
                 {/* Character List Grid */}
                 <div className="character-grid">

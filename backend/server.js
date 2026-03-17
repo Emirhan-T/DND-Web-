@@ -20,6 +20,9 @@ const authRoutes = require('./routes/auth');
 // Eğer frontend '/api/auth' ile başlayan bir istek atarsa, authRoutes dosyasına git diyoruz
 app.use('/api/auth', authRoutes);
 
+const characterRoutes = require('./routes/character');
+app.use('/api/characters', characterRoutes);
+
 app.get('/', (req, res) => {
     res.send("Backend sunucusu tıkır tıkır çalışıyor!");
 });
