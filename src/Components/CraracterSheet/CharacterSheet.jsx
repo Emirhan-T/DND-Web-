@@ -4,6 +4,7 @@ import StatsStep from './StatsStep';
 import DetailsStep from './DetailsStep';
 import BioStep from './BioStep'; // YENİ: 3. Sayfayı buraya import ettik
 import './CharacterSheet.css';
+import SummaryStep from './SummaryStep';
 
 const CharacterSheet = () => {
     const navigate = useNavigate();
@@ -154,35 +155,6 @@ const CharacterSheet = () => {
     return (
         <div className="sheet-bg">
             <div className="sheet-container">
-                <header className="sheet-header">
-                    <div className="char-name-container">
-                        <input type="text" placeholder="Character Name" value={character.name} onChange={(e) => setCharacter({...character, name: e.target.value})} />
-                    </div>
-                    <div className="char-details-grid">
-                        <div className="detail-box">
-                            <input type="text" value={character.charClass} onChange={(e) => setCharacter({...character, charClass: e.target.value})} />
-                            <label>Class</label>
-                        </div>
-                        <div className="detail-box">
-                            <div className="number-controls">
-                                <button type="button" className="spin-btn" onClick={() => setCharacter({...character, level: Math.max(1, character.level - 1)})}>−</button>
-                                <input 
-                                    type="number" 
-                                    min="1" max="20" 
-                                    value={character.level} 
-                                    onChange={(e) => setCharacter({...character, level: Math.max(1, parseInt(e.target.value) || 1)})} 
-                                    style={{ width: '40px', textAlign: 'center', padding: '0' }} 
-                                />
-                                <button type="button" className="spin-btn" onClick={() => setCharacter({...character, level: Math.min(20, character.level + 1)})}>+</button>
-                            </div>
-                            <label>Level</label>
-                        </div>
-                        <div className="detail-box"><input type="text" value={character.species} onChange={(e) => setCharacter({...character, species: e.target.value})} /><label>Race</label></div>
-                        <div className="detail-box"><input type="text" value={character.playerName} onChange={(e) => setCharacter({...character, playerName: e.target.value})} /><label>Player</label></div>
-                        <div className="detail-box"><input type="number" value={character.expPoints} onChange={(e) => setCharacter({...character, expPoints: e.target.value})} /><label>XP</label></div>
-                        <div className="detail-box prof-bonus-display"><div className="bonus-value">+{profBonus}</div><label>Proficiency</label></div>
-                    </div>
-                </header>
 
                 {/* --- 3 SAYFALI GEÇİŞ SİSTEMİ BURADA --- */}
                 {currentStep === 1 && (
@@ -237,6 +209,7 @@ const CharacterSheet = () => {
                         handleImageUpload={handleImageUpload}
                     />
                 )}
+                {currentStep === 4 && <SummaryStep character={character} calculateModifier={calculateModifier} />}
 
                 {/* --- SAYFA ALTINDAKİ BUTONLAR --- */}
                 <div className="sheet-actions">
@@ -255,9 +228,16 @@ const CharacterSheet = () => {
                     {currentStep === 3 && (
                         <>
                             <button type="button" className="cancel-btn" onClick={() => setCurrentStep(2)}>← DETAILS</button>
-                            <button type="button" className="save-btn final-save-btn" onClick={() => console.log("FINAL DATA:", character)}>SAVE TO DB</button>
+                            <button type="button" className="save-btn next-btn" onClick={() => setCurrentStep(4)}>PREVIEW ➔</button>
                         </>
                     )}
+                    {currentStep === 4 && (
+                        <>
+                            <button type="button" className="cancel-btn" onClick={() => setCurrentStep(3)}>← BIO</button>
+                            <button type="button" className="save-btn final-save-btn" onClick={() => console.log("DATABASE SAVING...", character)}>FINISH & SAVE</button>
+                        </>
+                    )}
+                    
                 </div>
                 
             </div>
