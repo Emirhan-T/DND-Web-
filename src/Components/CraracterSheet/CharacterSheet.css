@@ -54,7 +54,7 @@
    GLOBAL INPUT RESET
    ========================================= */
 input, select, textarea {
-    font-family: 'Exo 2', sans-serif;
+
     color: #fff;
     background: transparent;
     outline: none;
@@ -86,7 +86,7 @@ input::placeholder { color: rgba(255, 255, 255, 0.3); }
 
 .char-name-container input {
     width: 100%;
-    font-family: 'Cinzel', serif;
+
     font-size: 32px;
     font-weight: 700;
     border: none;
@@ -103,7 +103,7 @@ input::placeholder { color: rgba(255, 255, 255, 0.3); }
 }
 
 .char-name-container input::placeholder {
-    font-family: 'Cinzel', serif;
+
     color: rgba(255, 255, 255, 0.2);
 }
 
@@ -134,7 +134,7 @@ input::placeholder { color: rgba(255, 255, 255, 0.3); }
 .detail-box input:focus { border-bottom-color: rgba(212, 175, 55, 0.6); }
 
 .detail-box label {
-    font-family: 'Cinzel', serif;
+
     font-size: 9px;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.3);
@@ -159,7 +159,7 @@ input::placeholder { color: rgba(255, 255, 255, 0.3); }
 }
 
 .bonus-value {
-    font-family: 'Exo 2', sans-serif;
+
     font-size: 22px;
     font-weight: 900;
     color: #d4af37;
@@ -217,7 +217,7 @@ input::placeholder { color: rgba(255, 255, 255, 0.3); }
 .sheet-actions button {
     padding: 11px 32px;
     border-radius: 40px;
-    font-family: 'Cinzel', serif;
+
     font-weight: 700;
     font-size: 11.5px;
     letter-spacing: 1.5px;
@@ -304,7 +304,7 @@ input::placeholder { color: rgba(255, 255, 255, 0.3); }
 
 .section-header h2 {
     margin: 0;
-    font-family: 'Cinzel', serif;
+
     font-size: 15px;
     font-weight: 700;
     color: rgba(212, 175, 55, 0.9);
@@ -318,7 +318,7 @@ input::placeholder { color: rgba(255, 255, 255, 0.3); }
     border: 1px solid rgba(212, 175, 55, 0.28);
     padding: 6px 14px;
     border-radius: 20px;
-    font-family: 'Cinzel', serif;
+
     font-weight: 600;
     font-size: 10.5px;
     letter-spacing: 1px;
@@ -373,7 +373,7 @@ input::placeholder { color: rgba(255, 255, 255, 0.3); }
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-family: 'Exo 2', sans-serif;
+
     font-weight: 900;
     font-size: 14px;
     transition: all 0.2s ease;

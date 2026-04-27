@@ -42,7 +42,7 @@
 }
 
 .portrait-placeholder {
-    font-family: 'Cinzel', serif;
+
     color: rgba(212, 175, 55, 0.6);
     font-size: 14px;
     letter-spacing: 2px;
@@ -103,7 +103,7 @@
 }
 
 .trait-box label {
-    font-family: 'Cinzel', serif;
+
     font-size: 11px;
     color: #d4af37;
     text-transform: uppercase;
@@ -119,7 +119,7 @@
     background: transparent;
     border: none;
     color: rgba(255, 255, 255, 0.85);
-    font-family: 'Exo 2', sans-serif;
+
     font-size: 13px;
     resize: none;
     outline: none;
@@ -150,7 +150,7 @@
     background: transparent;
     border: none;
     color: #fff;
-    font-family: 'Exo 2', sans-serif;
+
     outline: none;
 }
 
@@ -162,7 +162,7 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
     color: rgba(255, 255, 255, 0.9);
-    font-family: 'Exo 2', sans-serif;
+
     font-size: 14px;
     padding: 16px;
     resize: vertical;

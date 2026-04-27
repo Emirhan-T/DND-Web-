@@ -5,6 +5,8 @@ import ResetPasswordForm from './Components/LoginForm/ResetPasswordForm'; // We 
 import MainMenu from './Components/MainMenu/MainMenu.jsx';
 import CharacterManager from './Components/CharacterManager/CharacterManager.jsx';
 import CharacterSheet from './Components/CraracterSheet/CharacterSheet.jsx';
+import HostGame from './Components/HostGame/HostGame.jsx';
+import GMDashboard from './Components/GMDashboard/GMDashboard.jsx';
 
 function App() {
   return (
@@ -18,6 +20,8 @@ function App() {
         <Route path="/main-menu" element={<MainMenu />} />
         <Route path="/character-manager" element={<CharacterManager />} />
         <Route path="/character-sheet" element={<CharacterSheet />} />
+        <Route path="/host-game" element={<HostGame />} />
+        <Route path="/gm-dashboard" element={<GMDashboard />} />
       </Routes>
     </Router>
   );
