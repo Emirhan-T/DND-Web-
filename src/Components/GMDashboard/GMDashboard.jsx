@@ -20,22 +20,33 @@ const GMDashboard = () => {
     const [diceType, setDiceType] = useState(20);
     const [isHiddenRoll, setIsHiddenRoll] = useState(false);
 
-    // --- MEDYA & CANVAS STATE'LERİ ---
-    const [bottomTab, setBottomTab] = useState('maps'); // 'maps', 'images', 'grid'
+    // --- MEDYA & HARİTA STATE'LERİ ---
+    const [bottomTab, setBottomTab] = useState('maps'); 
     const [maps, setMaps] = useState([]);
     const [images, setImages] = useState([]);
     const [activeCanvas, setActiveCanvas] = useState(null); 
     const fileInputRef = useRef(null);
-    const canvasImageRef = useRef(null);
 
-    // --- SÜRÜKLEME (PAN) STATE'LERİ (HARİTA İÇİN) ---
+    // --- HARİTA KİLİDİ VE SÜRÜKLEME ---
+    const [isCanvasLocked, setIsCanvasLocked] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-    // --- GRID & TOKEN STATE'LERİ (YENİ) ---
+    // --- ÇİZİM ARAÇLARI (YENİ) ---
+    const [activeTool, setActiveTool] = useState('cursor'); // cursor, marker, eraser, laser, line, circle, cone
+    const [drawingColor, setDrawingColor] = useState('#ff4d4d');
+    const [canvasSize, setCanvasSize] = useState({ w: 1920, h: 1080 }); // Harita yüklenince güncellenir
+    
+    const mainCanvasRef = useRef(null); // Kalıcı çizimler (Marker, Silgi)
+    const overlayCanvasRef = useRef(null); // Geçici çizimler (Lazer, Koniler)
+    const isDrawingRef = useRef(false);
+    const startPosRef = useRef({ x: 0, y: 0 });
+
+    // --- GRID & TOKEN STATE'LERİ ---
     const [grid, setGrid] = useState({ isVisible: false, type: 'square', size: 60, rotation: 0, opacity: 0.5 });
     const [tokens, setTokens] = useState([]);
-    const [draggedToken, setDraggedToken] = useState(null); // { id, offsetX, offsetY }
+    const [draggedToken, setDraggedToken] = useState(null);
+    const [tokenModal, setTokenModal] = useState({ isOpen: false, mode: 'create', data: { id: null, name: '', color: 'blue', size: 1, hp: '', maxHp: '', ac: '', speed: '', init: '' } });
 
     // --- OYUNCU (MOCK DATA) ---
     const [players, setPlayers] = useState([
@@ -46,90 +57,161 @@ const GMDashboard = () => {
     const calculateModifier = (score) => Math.floor((score - 10) / 2);
 
     useEffect(() => {
-        if (isHudOpen && logContainerRef.current) {
-            logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-        }
+        if (isHudOpen && logContainerRef.current) logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }, [logs, isHudOpen]);
 
-    // --- EVRENSEL FARE HAREKETLERİ (Harita ve Token) ---
-    const handleMouseMove = (e) => {
+    // --- EVRENSEL SÜRÜKLEME (PAN & TOKEN) ---
+    const handleGlobalMouseMove = (e) => {
         if (draggedToken) {
-            // Token Sürükleniyorsa
-            setTokens(prev => prev.map(t => 
-                t.id === draggedToken.id 
-                ? { ...t, x: e.clientX - draggedToken.offsetX, y: e.clientY - draggedToken.offsetY } 
-                : t
-            ));
-        } else if (isDragging && activeCanvas) {
-            // Harita Sürükleniyorsa
-            setActiveCanvas(prev => ({
-                ...prev,
-                x: e.clientX - dragStart.x,
-                y: e.clientY - dragStart.y
-            }));
+            setTokens(prev => prev.map(t => t.id === draggedToken.id ? { ...t, x: e.clientX - draggedToken.offsetX, y: e.clientY - draggedToken.offsetY } : t));
+        } else if (isDragging && activeCanvas && !isCanvasLocked && activeTool === 'cursor') {
+            setActiveCanvas(prev => ({ ...prev, x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }));
+        }
+    };
+    const handleGlobalMouseUp = () => { setIsDragging(false); setDraggedToken(null); };
+
+    // --- ÇİZİM MOTORU HANDLERS ---
+    const handleCanvasMouseDown = (e) => {
+        // Eğer Cursor seçiliyse veya Harita kitli değilse sürüklemeye (pan) izin ver
+        if (activeTool === 'cursor') {
+            if (!isCanvasLocked && activeCanvas) {
+                setIsDragging(true);
+                setDragStart({ x: e.clientX - activeCanvas.x, y: e.clientY - activeCanvas.y });
+            }
+            return;
+        }
+
+        // Çizim başlıyor
+        e.stopPropagation();
+        isDrawingRef.current = true;
+        const pos = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY };
+        startPosRef.current = pos;
+
+        if (['marker', 'eraser', 'laser'].includes(activeTool)) {
+            const ctx = activeTool === 'laser' ? overlayCanvasRef.current.getContext('2d') : mainCanvasRef.current.getContext('2d');
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+            ctx.strokeStyle = activeTool === 'eraser' ? 'rgba(0,0,0,1)' : drawingColor;
+            ctx.lineWidth = activeTool === 'eraser' ? 40 : 6; // Silgi kalınlığı
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.globalCompositeOperation = activeTool === 'eraser' ? 'destination-out' : 'source-over';
         }
     };
 
-    const handleMouseUp = () => {
-        setIsDragging(false);
-        setDraggedToken(null);
+    const handleCanvasMouseMove = (e) => {
+        if (!isDrawingRef.current || activeTool === 'cursor') return;
+        e.stopPropagation();
+
+        const pos = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY };
+        const ctxMain = mainCanvasRef.current?.getContext('2d');
+        const ctxOverlay = overlayCanvasRef.current?.getContext('2d');
+        if (!ctxMain || !ctxOverlay) return;
+
+        if (['marker', 'eraser'].includes(activeTool)) {
+            ctxMain.lineTo(pos.x, pos.y);
+            ctxMain.stroke();
+        } else if (activeTool === 'laser') {
+            ctxOverlay.lineTo(pos.x, pos.y);
+            ctxOverlay.stroke();
+        } else if (['line', 'circle', 'cone'].includes(activeTool)) {
+            // Ölçüm: Her harekette temizle ve yeniden çiz
+            ctxOverlay.clearRect(0, 0, canvasSize.w, canvasSize.h);
+            ctxOverlay.beginPath();
+            ctxOverlay.strokeStyle = drawingColor;
+            ctxOverlay.lineWidth = 4;
+            ctxOverlay.fillStyle = drawingColor + '40'; // Hafif saydam dolgu
+
+            const dx = pos.x - startPosRef.current.x;
+            const dy = pos.y - startPosRef.current.y;
+            const distancePx = Math.sqrt(dx*dx + dy*dy);
+            const distanceFt = ((distancePx / grid.size) * 5).toFixed(0); // D&D Ölçüsü (1 kare = 5ft)
+
+            if (activeTool === 'line') {
+                ctxOverlay.moveTo(startPosRef.current.x, startPosRef.current.y);
+                ctxOverlay.lineTo(pos.x, pos.y);
+                ctxOverlay.stroke();
+                ctxOverlay.fillStyle = '#fff'; ctxOverlay.font = 'bold 24px Arial';
+                ctxOverlay.fillText(`${distanceFt} ft`, pos.x + 15, pos.y + 15);
+            } else if (activeTool === 'circle') {
+                ctxOverlay.arc(startPosRef.current.x, startPosRef.current.y, distancePx, 0, Math.PI * 2);
+                ctxOverlay.stroke(); ctxOverlay.fill();
+                ctxOverlay.fillStyle = '#fff'; ctxOverlay.font = 'bold 24px Arial';
+                ctxOverlay.fillText(`Rad: ${distanceFt} ft`, pos.x + 15, pos.y + 15);
+            } else if (activeTool === 'cone') {
+                const angle = Math.atan2(dy, dx);
+                const coneAngle = Math.PI / 6; // 30 derece koni genişliği
+                ctxOverlay.moveTo(startPosRef.current.x, startPosRef.current.y);
+                ctxOverlay.lineTo(startPosRef.current.x + Math.cos(angle - coneAngle) * distancePx, startPosRef.current.y + Math.sin(angle - coneAngle) * distancePx);
+                ctxOverlay.arc(startPosRef.current.x, startPosRef.current.y, distancePx, angle - coneAngle, angle + coneAngle);
+                ctxOverlay.lineTo(startPosRef.current.x, startPosRef.current.y);
+                ctxOverlay.stroke(); ctxOverlay.fill();
+                ctxOverlay.fillStyle = '#fff'; ctxOverlay.font = 'bold 24px Arial';
+                ctxOverlay.fillText(`${distanceFt} ft`, pos.x + 15, pos.y + 15);
+            }
+        }
     };
 
-    // --- HARİTA FARE OLAYLARI ---
-    const handleMapMouseDown = (e) => {
-        if (!activeCanvas) return;
-        setIsDragging(true);
-        setDragStart({ x: e.clientX - activeCanvas.x, y: e.clientY - activeCanvas.y });
+    const handleCanvasMouseUp = () => {
+        if (!isDrawingRef.current) return;
+        isDrawingRef.current = false;
+        
+        // Geçici araçlarsa (Lazer ve Ölçümler) 1.5 saniye sonra ekranı temizle
+        if (['laser', 'line', 'circle', 'cone'].includes(activeTool)) {
+            setTimeout(() => {
+                if (overlayCanvasRef.current) overlayCanvasRef.current.getContext('2d').clearRect(0, 0, canvasSize.w, canvasSize.h);
+            }, 1500);
+        }
     };
 
-    // --- TOKEN FARE OLAYLARI (YENİ) ---
+    const handleClearDrawings = () => {
+        if(mainCanvasRef.current) mainCanvasRef.current.getContext('2d').clearRect(0, 0, canvasSize.w, canvasSize.h);
+        if(overlayCanvasRef.current) overlayCanvasRef.current.getContext('2d').clearRect(0, 0, canvasSize.w, canvasSize.h);
+        addLog("Map drawings cleared.", true);
+    };
+
+    // --- GELİŞMİŞ TOKEN HANDLERS ---
     const handleTokenMouseDown = (e, token) => {
-        e.stopPropagation(); // Haritanın sürüklenmesini engelle
+        e.stopPropagation();
         setDraggedToken({ id: token.id, offsetX: e.clientX - token.x, offsetY: e.clientY - token.y });
     };
 
-    const handleAddToken = (color) => {
-        const newToken = {
-            id: Date.now(),
-            color: color,
-            x: window.innerWidth / 2, // Ekranın ortasında doğar
-            y: window.innerHeight / 2
-        };
-        setTokens(prev => [...prev, newToken]);
-        addLog(`${color.toUpperCase()} Token added to the board.`, true);
+    const openTokenModal = (mode, tokenData = null) => {
+        setTokenModal({ isOpen: true, mode, data: tokenData ? { ...tokenData } : { id: null, name: '', color: 'blue', size: 1, hp: '', maxHp: '', ac: '', speed: '', init: '' } });
     };
+    const closeTokenModal = () => setTokenModal({ isOpen: false, mode: 'create', data: {} });
 
-    const handleClearTokens = () => {
-        setTokens([]);
-        addLog(`All tokens cleared.`, true);
+    const saveToken = () => {
+        if (tokenModal.mode === 'create') setTokens(prev => [...prev, { ...tokenModal.data, id: Date.now(), x: window.innerWidth / 2, y: window.innerHeight / 2 }]);
+        else setTokens(prev => prev.map(t => t.id === tokenModal.data.id ? { ...tokenModal.data, x: t.x, y: t.y } : t));
+        closeTokenModal();
     };
+    const removeToken = () => { setTokens(prev => prev.filter(t => t.id !== tokenModal.data.id)); closeTokenModal(); };
+    const handleAddQuickToken = (color) => { setTokens(prev => [...prev, { id: Date.now(), color, size: 1, name: '', hp: '', maxHp: '', ac: '', speed: '', init: '', x: window.innerWidth / 2, y: window.innerHeight / 2 }]); };
+    const handleClearTokens = () => { setTokens([]); };
 
-    // --- HANDLERS (MEDYA & CANVAS) ---
+    // --- MEDYA HANDLERS ---
     const handleFileUpload = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const url = URL.createObjectURL(file);
-        const newItem = { id: Date.now(), name: file.name, url };
-        
-        if (bottomTab === 'maps') setMaps(prev => [...prev, newItem]);
-        else setImages(prev => [...prev, newItem]);
+        const file = e.target.files[0]; if (!file) return;
+        const url = URL.createObjectURL(file); const newItem = { id: Date.now(), name: file.name, url };
+        if (bottomTab === 'maps') setMaps(prev => [...prev, newItem]); else setImages(prev => [...prev, newItem]);
         e.target.value = null; 
     };
 
     const handleMediaDelete = (id, e) => {
         e.stopPropagation();
         if(!window.confirm("Silmek istediğine emin misin?")) return;
-        if (bottomTab === 'maps') setMaps(prev => prev.filter(m => m.id !== id));
-        else setImages(prev => prev.filter(img => img.id !== id));
+        if (bottomTab === 'maps') setMaps(prev => prev.filter(m => m.id !== id)); else setImages(prev => prev.filter(img => img.id !== id));
         if(activeCanvas && (maps.find(m => m.id === id) || images.find(img => img.id === id))) setActiveCanvas(null);
     };
 
-    const handleShowOnCanvas = (item, type) => {
-        setActiveCanvas({ url: item.url, scale: 1, rotation: 0, type, x: 0, y: 0 });
+    const handleShowOnCanvas = (item, type) => { 
+        setActiveCanvas({ url: item.url, scale: 1, rotation: 0, type, x: 0, y: 0 }); 
+        setIsCanvasLocked(false);
+        setActiveTool('cursor');
     };
 
     const handleCanvasTransform = (action) => {
-        if (!activeCanvas) return;
+        if (!activeCanvas || isCanvasLocked) return;
         setActiveCanvas(prev => {
             let { scale, rotation, x, y } = prev;
             if (action === 'zoomIn') scale = Math.min(10, scale + 0.1);
@@ -141,7 +223,7 @@ const GMDashboard = () => {
         });
     };
 
-    // --- HANDLERS (ZAR & LOG) ---
+    // --- ZAR LOG HANDLERS ---
     const handleCopyCode = () => { navigator.clipboard.writeText(gameCode); addLog(`Game Code copied.`, true); };
     const addLog = (text, isHidden = false) => { setLogs(prev => [...prev, { id: Date.now(), text, isHidden }]); };
     const handleLongRest = () => { if(window.confirm("Restore all HP?")) addLog("Party took a Long Rest.", false); };
@@ -153,70 +235,94 @@ const GMDashboard = () => {
     };
 
     return (
-        <div className="gm-dashboard-wrapper" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+        <div className="gm-dashboard-wrapper" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp} onMouseLeave={handleGlobalMouseUp}>
             
-            {/* ================= LAYER 0: MAP, GRID & TOKENS ================= */}
+            {/* ================= ÇİZİM ARAÇLARI MENÜSÜ ================= */}
+            <div className="drawing-tools-menu">
+                <button type="button" className={`tool-btn ${activeTool === 'cursor' ? 'active' : ''}`} onClick={() => setActiveTool('cursor')} title="Move Map (Cursor)">👆</button>
+                <div className="tool-divider"></div>
+                <button type="button" className={`tool-btn ${activeTool === 'marker' ? 'active' : ''}`} onClick={() => setActiveTool('marker')} title="Draw (Marker)">🖍️</button>
+                <button type="button" className={`tool-btn ${activeTool === 'laser' ? 'active' : ''}`} onClick={() => setActiveTool('laser')} title="Laser Pointer (Fades)">⚡</button>
+                <button type="button" className={`tool-btn ${activeTool === 'line' ? 'active' : ''}`} onClick={() => setActiveTool('line')} title="Measure Line">📏</button>
+                <button type="button" className={`tool-btn ${activeTool === 'circle' ? 'active' : ''}`} onClick={() => setActiveTool('circle')} title="Measure Circle">⭕</button>
+                <button type="button" className={`tool-btn ${activeTool === 'cone' ? 'active' : ''}`} onClick={() => setActiveTool('cone')} title="Measure Cone">📐</button>
+                <button type="button" className={`tool-btn ${activeTool === 'eraser' ? 'active' : ''}`} onClick={() => setActiveTool('eraser')} title="Eraser">🧽</button>
+                <div className="tool-divider"></div>
+                <input type="color" className="color-picker-tool" value={drawingColor} onChange={(e) => setDrawingColor(e.target.value)} title="Color" />
+                <button type="button" className="tool-btn danger" onClick={handleClearDrawings} title="Clear All Drawings">🗑️</button>
+            </div>
+
+            {/* ================= LAYER 0: MAP, ÇİZİM & TOKENS ================= */}
             <div className="layer-map">
-                
-                {/* 1. Harita Oynatıcısı */}
                 {activeCanvas ? (
                     <div className="canvas-view-area">
-                        <img 
-                            src={activeCanvas.url} alt="Active Canvas" className="canvas-image" ref={canvasImageRef}
-                            style={{ 
+                        {/* KRAL: Resim ve Çizimler aynı grupta beraber hareket eder */}
+                        <div 
+                            className="canvas-transform-group"
+                            style={{
+                                width: canvasSize.w, height: canvasSize.h,
                                 transform: `translate(${activeCanvas.x}px, ${activeCanvas.y}px) scale(${activeCanvas.scale}) rotate(${activeCanvas.rotation}deg)`,
-                                cursor: isDragging ? 'grabbing' : 'grab' 
-                            }} 
-                            onMouseDown={handleMapMouseDown} draggable="false" 
-                        />
+                                cursor: activeTool === 'cursor' ? (isDragging ? 'grabbing' : 'grab') : 'crosshair'
+                            }}
+                        >
+                            {/* Ana Harita Resmi */}
+                            <img 
+                                src={activeCanvas.url} alt="Map" className="map-base-img" draggable="false"
+                                onLoad={(e) => setCanvasSize({w: e.target.naturalWidth, h: e.target.naturalHeight})}
+                            />
+                            
+                            {/* Kalıcı Çizimler (Fırça, Silgi) */}
+                            <canvas ref={mainCanvasRef} width={canvasSize.w} height={canvasSize.h} className="drawing-canvas main-canvas" />
+                            
+                            {/* Geçici Çizimler (Lazer, Koni vs.) & Event Dinleyici */}
+                            <canvas 
+                                ref={overlayCanvasRef} width={canvasSize.w} height={canvasSize.h} className="drawing-canvas overlay-canvas"
+                                onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseOut={handleCanvasMouseUp}
+                            />
+                        </div>
+
+                        {/* Harita Kontrolleri ve Kilit Sistemi */}
                         <div className="canvas-controls">
-                            <div className="zoom-ctrls">
-                                <button type="button" onClick={() => handleCanvasTransform('zoomOut')} title="Zoom Out">[-]</button>
-                                <span>Zoom: {activeCanvas.scale.toFixed(1)}x</span>
-                                <button type="button" onClick={() => handleCanvasTransform('zoomIn')} title="Zoom In">[+]</button>
-                            </div>
-                            <div className="rotate-ctrls">
-                                <button type="button" onClick={() => handleCanvasTransform('rotateLeft')} title="Rotate Left">↺</button>
-                                <span>Free Rotate</span>
-                                <button type="button" onClick={() => handleCanvasTransform('rotateRight')} title="Rotate Right">↻</button>
-                            </div>
-                            <button type="button" className="reset-canvas-btn" onClick={() => handleCanvasTransform('reset')}>↩ RESET</button>
-                            <button type="button" className="clear-canvas-btn" onClick={() => setActiveCanvas(null)}>✕ CLEAR</button>
+                            <button type="button" className={`lock-canvas-btn ${isCanvasLocked ? 'locked' : 'unlocked'}`} onClick={() => setIsCanvasLocked(!isCanvasLocked)} title="Lock/Unlock Map">
+                                {isCanvasLocked ? '🔒 LOCKED' : '🔓 UNLOCKED'}
+                            </button>
+                            
+                            {!isCanvasLocked && (
+                                <>
+                                    <div className="zoom-ctrls"><button type="button" onClick={() => handleCanvasTransform('zoomOut')}>[-]</button><span>Zoom: {activeCanvas.scale.toFixed(1)}x</span><button type="button" onClick={() => handleCanvasTransform('zoomIn')}>[+]</button></div>
+                                    <div className="rotate-ctrls"><button type="button" onClick={() => handleCanvasTransform('rotateLeft')}>↺</button><span>Free Rotate</span><button type="button" onClick={() => handleCanvasTransform('rotateRight')}>↻</button></div>
+                                    <button type="button" className="reset-canvas-btn" onClick={() => handleCanvasTransform('reset')}>↩ RESET</button>
+                                </>
+                            )}
                         </div>
                     </div>
                 ) : (
-                    <div className="canvas-placeholder-text"><span></span><br/></div>
+                    <div className="canvas-placeholder-text"><span>🗺️ BATTLEMAP CANVAS</span><br/>Select a map from the bottom menu</div>
                 )}
 
-                {/* 2. Grid Sistemi (Bağımsız Katman) */}
+                {/* GRID */}
                 {grid.isVisible && (
-                    <div className="grid-overlay" style={{ opacity: grid.opacity, transform: `rotate(${grid.rotation}deg)` }}>
+                    <div className="grid-overlay" style={{ opacity: grid.opacity, transform: `rotate(${grid.rotation}deg)`, pointerEvents: 'none' }}>
                         <svg width="100%" height="100%">
                             <defs>
-                                <pattern id="squareGrid" width={grid.size} height={grid.size} patternUnits="userSpaceOnUse">
-                                    <path d={`M ${grid.size} 0 L 0 0 0 ${grid.size}`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/>
-                                </pattern>
-                                {/* Basit Altıgen Deseni Yaklaşımı */}
-                                <pattern id="hexGrid" width={grid.size * Math.sqrt(3)} height={grid.size * 1.5} patternUnits="userSpaceOnUse">
-                                    <path d={`M ${grid.size * Math.sqrt(3)/2} ${grid.size * 0.5} l ${grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l 0 ${-grid.size * 0.5} l ${-grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l ${-grid.size * Math.sqrt(3)/2} ${grid.size * 0.25} l 0 ${grid.size * 0.5} z`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/>
-                                </pattern>
+                                <pattern id="squareGrid" width={grid.size} height={grid.size} patternUnits="userSpaceOnUse"><path d={`M ${grid.size} 0 L 0 0 0 ${grid.size}`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/></pattern>
+                                <pattern id="hexGrid" width={grid.size * Math.sqrt(3)} height={grid.size * 1.5} patternUnits="userSpaceOnUse"><path d={`M ${grid.size * Math.sqrt(3)/2} ${grid.size * 0.5} l ${grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l 0 ${-grid.size * 0.5} l ${-grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l ${-grid.size * Math.sqrt(3)/2} ${grid.size * 0.25} l 0 ${grid.size * 0.5} z`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/></pattern>
                             </defs>
                             <rect width="200%" height="200%" x="-50%" y="-50%" fill={`url(#${grid.type === 'square' ? 'squareGrid' : 'hexGrid'})`} />
                         </svg>
                     </div>
                 )}
 
-                {/* 3. Token Sistemi (En üstte, Grid'in üzerinde) */}
+                {/* TOKENLER */}
                 {tokens.map(token => (
                     <div 
-                        key={token.id} 
-                        className={`map-token color-${token.color} ${draggedToken?.id === token.id ? 'dragging' : ''}`}
-                        style={{ 
-                            left: token.x, top: token.y, 
-                            width: grid.size * 0.8, height: grid.size * 0.8 // Token boyutu gride uyar
-                        }}
-                        onMouseDown={(e) => handleTokenMouseDown(e, token)}
-                    />
+                        key={token.id} className={`map-token color-${token.color} ${draggedToken?.id === token.id ? 'dragging' : ''}`}
+                        style={{ left: token.x, top: token.y, width: grid.size * token.size * 0.85, height: grid.size * token.size * 0.85 }}
+                        onMouseDown={(e) => handleTokenMouseDown(e, token)} onDoubleClick={() => openTokenModal('edit', token)} title="Double-click to edit"
+                    >
+                        {token.maxHp && (<div className="token-hp-bar"><div className="token-hp-fill" style={{ width: `${Math.min(100, Math.max(0, (token.hp / token.maxHp) * 100))}%` }}></div></div>)}
+                        {token.name && <span className="token-name-tag">{token.name}</span>}
+                    </div>
                 ))}
             </div>
 
@@ -260,61 +366,44 @@ const GMDashboard = () => {
                 <div className="menu-handle top-handle" onClick={() => setIsTopOpen(!isTopOpen)}>{isTopOpen ? '▲' : '▼'}</div>
             </div>
 
-            {/* ================= LAYER 3: ALT MENÜ (Medya, Grid & Tokenler) ================= */}
+            {/* ================= LAYER 3: ALT MENÜ (Medya & Grid) ================= */}
             <div className={`layer-bottom-menu ${isBottomOpen ? 'open' : 'closed'}`}>
                 <div className="menu-handle bottom-handle" onClick={(e) => { e.stopPropagation(); setIsBottomOpen(!isBottomOpen); }}>
                     {isBottomOpen ? '▼' : '▲'} MEDIA & GRID
                 </div>
-                
                 <div className="bottom-menu-content">
                     <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
-                    
                     <div className="media-tabs-column">
                         <div className="tab-buttons">
                             <button type="button" className={`tab-btn ${bottomTab === 'maps' ? 'active' : ''}`} onClick={() => setBottomTab('maps')}>🗺️ MAPS</button>
                             <button type="button" className={`tab-btn ${bottomTab === 'images' ? 'active' : ''}`} onClick={() => setBottomTab('images')}>🖼️ IMAGES</button>
                         </div>
-                        {/* YENİ: Grid Sekmesi */}
-                        <button type="button" className={`tab-btn ${bottomTab === 'grid' ? 'active' : ''}`} onClick={() => setBottomTab('grid')} style={{marginTop: '5px', borderColor: '#7ec8ff', color: '#7ec8ff'}}>
-                            📐 GRID & TOKENS
-                        </button>
-
-                        {(bottomTab === 'maps' || bottomTab === 'images') && (
-                            <button type="button" className="upload-media-btn" style={{marginTop: '10px'}} onClick={() => fileInputRef.current?.click()}>
-                                + UPLOAD {bottomTab === 'maps' ? 'MAP' : 'IMAGE'}
-                            </button>
-                        )}
+                        <button type="button" className={`tab-btn ${bottomTab === 'grid' ? 'active' : ''}`} onClick={() => setBottomTab('grid')} style={{marginTop: '5px', borderColor: '#7ec8ff', color: '#7ec8ff'}}>📐 GRID & TOKENS</button>
+                        {(bottomTab === 'maps' || bottomTab === 'images') && (<button type="button" className="upload-media-btn" style={{marginTop: '10px'}} onClick={() => fileInputRef.current?.click()}>+ UPLOAD {bottomTab === 'maps' ? 'MAP' : 'IMAGE'}</button>)}
                     </div>
-
-                    {/* GALERİ veya GRID KONTROLLERİ */}
                     <div className="media-gallery">
                         {bottomTab === 'grid' ? (
                             <div className="grid-token-panel">
-                                {/* Grid Ayarları */}
                                 <div className="grid-settings-box">
                                     <h4>GRID SETTINGS</h4>
                                     <div className="grid-controls-row">
                                         <label>Show: <input type="checkbox" checked={grid.isVisible} onChange={(e) => setGrid({...grid, isVisible: e.target.checked})} /></label>
-                                        <label>Type: 
-                                            <select value={grid.type} onChange={(e) => setGrid({...grid, type: e.target.value})}>
-                                                <option value="square">Square</option>
-                                                <option value="hex">Hexagon</option>
-                                            </select>
-                                        </label>
+                                        <label>Type: <select value={grid.type} onChange={(e) => setGrid({...grid, type: e.target.value})}><option value="square">Square</option><option value="hex">Hexagon</option></select></label>
                                         <label>Size: <input type="range" min="20" max="150" value={grid.size} onChange={(e) => setGrid({...grid, size: parseInt(e.target.value)})} /></label>
                                         <label>Rotate: <input type="range" min="-180" max="180" value={grid.rotation} onChange={(e) => setGrid({...grid, rotation: parseInt(e.target.value)})} /></label>
                                     </div>
                                 </div>
-                                {/* Token Ayarları */}
                                 <div className="token-spawner-box">
                                     <h4>SPAWN TOKENS</h4>
                                     <div className="token-buttons-row">
-                                        <button type="button" className="token-btn blue" onClick={() => handleAddToken('blue')}></button>
-                                        <button type="button" className="token-btn red" onClick={() => handleAddToken('red')}></button>
-                                        <button type="button" className="token-btn green" onClick={() => handleAddToken('green')}></button>
-                                        <button type="button" className="token-btn yellow" onClick={() => handleAddToken('yellow')}></button>
-                                        <button type="button" className="token-btn purple" onClick={() => handleAddToken('purple')}></button>
-                                        <button type="button" className="clear-tokens-btn" onClick={handleClearTokens}>CLEAR ALL</button>
+                                        <button type="button" className="token-btn blue" onClick={() => handleAddQuickToken('blue')}></button>
+                                        <button type="button" className="token-btn red" onClick={() => handleAddQuickToken('red')}></button>
+                                        <button type="button" className="token-btn green" onClick={() => handleAddQuickToken('green')}></button>
+                                        <button type="button" className="token-btn yellow" onClick={() => handleAddQuickToken('yellow')}></button>
+                                        <button type="button" className="token-btn purple" onClick={() => handleAddQuickToken('purple')}></button>
+                                        <button type="button" className="token-btn dark" onClick={() => handleAddQuickToken('dark')}></button>
+                                        <button type="button" className="custom-token-btn" onClick={() => openTokenModal('create')}>+ CUSTOM</button>
+                                        <button type="button" className="clear-tokens-btn" onClick={handleClearTokens}>CLEAR</button>
                                     </div>
                                 </div>
                             </div>
@@ -326,10 +415,7 @@ const GMDashboard = () => {
                                     <div className="media-card" key={item.id}>
                                         <button type="button" className="delete-media-btn" onClick={(e) => handleMediaDelete(item.id, e)}>🗑️</button>
                                         <img src={item.url} alt={item.name} />
-                                        <div className="media-card-overlay">
-                                            <span className="media-name">{item.name}</span>
-                                            <button type="button" className="show-canvas-btn" onClick={() => handleShowOnCanvas(item, bottomTab)}>DISPLAY</button>
-                                        </div>
+                                        <div className="media-card-overlay"><span className="media-name">{item.name}</span><button type="button" className="show-canvas-btn" onClick={() => handleShowOnCanvas(item, bottomTab)}>DISPLAY</button></div>
                                     </div>
                                 ))}
                             </>
@@ -348,19 +434,48 @@ const GMDashboard = () => {
                             <input type="number" min="1" max="99" value={diceQty} onChange={(e) => setDiceQty(e.target.value)} /><span>d</span>
                             <select value={diceType} onChange={(e) => setDiceType(e.target.value)}><option value={4}>4</option><option value={6}>6</option><option value={8}>8</option><option value={10}>10</option><option value={12}>12</option><option value={20}>20</option><option value={100}>100</option></select>
                         </div>
-                        <div className="dice-actions">
-                            <label className="hidden-roll-toggle"><input type="checkbox" checked={isHiddenRoll} onChange={(e) => setIsHiddenRoll(e.target.checked)} /><span className="toggle-label">Hidden</span></label>
-                            <button type="button" className="roll-btn" onClick={handleRollDice}>ROLL 🎲</button>
-                        </div>
+                        <div className="dice-actions"><label className="hidden-roll-toggle"><input type="checkbox" checked={isHiddenRoll} onChange={(e) => setIsHiddenRoll(e.target.checked)} /><span className="toggle-label">Hidden</span></label><button type="button" className="roll-btn" onClick={handleRollDice}>ROLL 🎲</button></div>
                     </div>
                     <div className="log-panel">
                         <div className="log-header">COMBAT & EVENT LOG</div>
-                        <div className="log-messages" ref={logContainerRef}>
-                            {logs.map(log => (<div key={log.id} className={`log-entry ${log.isHidden ? 'hidden-log' : 'public-log'}`}>{log.isHidden && <span className="hidden-icon">👁️‍🗨️</span>}{log.text}</div>))}
-                        </div>
+                        <div className="log-messages" ref={logContainerRef}>{logs.map(log => (<div key={log.id} className={`log-entry ${log.isHidden ? 'hidden-log' : 'public-log'}`}>{log.isHidden && <span className="hidden-icon">👁️‍🗨️</span>}{log.text}</div>))}</div>
                     </div>
                 </div>
             </div>
+
+            {/* ================= TOKEN EDITOR MODAL (En Üst Katman) ================= */}
+            {tokenModal.isOpen && (
+                <div className="modal-overlay fade-in" style={{zIndex: 1000}}>
+                    <div className="modal-content" style={{maxWidth: '400px'}}>
+                        <h2>{tokenModal.mode === 'create' ? 'Create Custom Token' : 'Edit Token'}</h2>
+                        
+                        <div className="host-input-group"><label>Token Name</label><input type="text" placeholder="e.g. Goblin Boss" value={tokenModal.data.name} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, name: e.target.value}})} /></div>
+                        
+                        <div className="grid-controls-row" style={{marginBottom: '15px'}}>
+                            <label>Size: <select value={tokenModal.data.size} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, size: parseFloat(e.target.value)}})}><option value={1}>1x1 (Medium/Small)</option><option value={2}>2x2 (Large)</option><option value={3}>3x3 (Huge)</option><option value={4}>4x4 (Gargantuan)</option></select></label>
+                            <label>Color: <select value={tokenModal.data.color} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, color: e.target.value}})}><option value="blue">Blue (Player)</option><option value="red">Red (Enemy)</option><option value="dark">Dark (Boss)</option><option value="green">Green (Ally)</option><option value="yellow">Yellow</option><option value="purple">Purple</option></select></label>
+                        </div>
+
+                        <div className="grid-controls-row" style={{marginBottom: '15px'}}>
+                            <label>HP: <input type="number" placeholder="Current" value={tokenModal.data.hp} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, hp: e.target.value}})} /></label>
+                            <label>Max HP: <input type="number" placeholder="Max" value={tokenModal.data.maxHp} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, maxHp: e.target.value}})} /></label>
+                        </div>
+
+                        <div className="grid-controls-row" style={{marginBottom: '15px'}}>
+                            <label>Armor Class (AC): <input type="number" value={tokenModal.data.ac} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, ac: e.target.value}})} /></label>
+                            <label>Speed: <input type="number" value={tokenModal.data.speed} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, speed: e.target.value}})} /></label>
+                        </div>
+                        
+                        <div className="grid-controls-row"><label>Initiative Bonus: <input type="number" value={tokenModal.data.init} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, init: e.target.value}})} /></label></div>
+
+                        <div className="modal-actions">
+                            {tokenModal.mode === 'edit' && <button type="button" className="modal-delete-btn" style={{marginRight: 'auto'}} onClick={removeToken}>DELETE</button>}
+                            <button type="button" className="modal-cancel-btn" onClick={closeTokenModal}>CANCEL</button>
+                            <button type="button" className="modal-confirm-btn" onClick={saveToken}>SAVE TOKEN</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );
