@@ -1,0 +1,393 @@
+/* =========================================
+   CharacterSheet.css — Glass Fantasy
+   Google Fonts: Cinzel + Exo 2
+   Glassmorphism + gold D&D accents
+   ========================================= */
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Exo+2:ital,wght@0,300;0,400;0,600;0,700;0,900;1,400&display=swap');
+
+/* =========================================
+   GLOBAL BACKGROUND
+   ========================================= */
+.sheet-bg {
+    background: url('https://images.unsplash.com/photo-1605806616949-1e87b487cb2a?q=80&w=1920&auto=format&fit=crop') no-repeat center center fixed;
+    background-size: cover;
+    min-height: 100vh;
+    padding: 40px 20px;
+    display: flex;
+    justify-content: center;
+    font-family: 'Exo 2', 'Segoe UI', sans-serif;
+}
+
+/* =========================================
+   MAIN GLASS CONTAINER
+   ========================================= */
+.sheet-container {
+    width: 100%;
+    max-width: 1200px;
+    background: rgba(0, 0, 0, 0.44);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-top-color: rgba(212, 175, 55, 0.3);
+    border-radius: 18px;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.04),
+        0 24px 80px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    color: #fff;
+    padding: 36px 40px;
+    position: relative;
+}
+
+/* Gold shimmer on top edge */
+.sheet-container::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 8%; right: 8%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.5), transparent);
+    border-radius: 0 0 2px 2px;
+    pointer-events: none;
+}
+
+/* =========================================
+   GLOBAL INPUT RESET
+   ========================================= */
+input, select, textarea {
+
+    color: #fff;
+    background: transparent;
+    outline: none;
+    moz-appearance: textfield;
+}
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+input::placeholder { color: rgba(255, 255, 255, 0.3); }
+
+/* =========================================
+   HEADER
+   ========================================= */
+.sheet-header {
+    display: flex;
+    gap: 30px;
+    margin-bottom: 36px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 28px;
+    align-items: flex-end;
+}
+
+.char-name-container {
+    flex: 1.2;
+    display: flex;
+    align-items: flex-end;
+}
+
+.char-name-container input {
+    width: 100%;
+
+    font-size: 32px;
+    font-weight: 700;
+    border: none;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+    padding-bottom: 6px;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.92);
+    transition: border-color 0.3s;
+}
+
+.char-name-container input:focus {
+    border-bottom-color: rgba(212, 175, 55, 0.7);
+    color: #fff;
+}
+
+.char-name-container input::placeholder {
+
+    color: rgba(255, 255, 255, 0.2);
+}
+
+.char-details-grid {
+    flex: 2;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.detail-box { display: flex; flex-direction: column; }
+
+.detail-box input {
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 15px;
+    font-weight: 600;
+    padding-bottom: 4px;
+    transition: border-color 0.2s;
+}
+
+.detail-box input:focus { border-bottom-color: rgba(212, 175, 55, 0.6); }
+
+.detail-box label {
+
+    font-size: 9px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.3);
+    margin-top: 5px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+}
+
+.prof-bonus-display {
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(212, 175, 55, 0.3) !important;
+    border-radius: 8px;
+    background: rgba(212, 175, 55, 0.07);
+    backdrop-filter: blur(8px);
+    transition: background 0.3s, box-shadow 0.3s;
+}
+
+.prof-bonus-display:hover {
+    background: rgba(212, 175, 55, 0.12);
+    box-shadow: 0 0 14px rgba(212, 175, 55, 0.15);
+}
+
+.bonus-value {
+
+    font-size: 22px;
+    font-weight: 900;
+    color: #d4af37;
+}
+
+/* =========================================
+   STEP TRANSITION
+   ========================================= */
+.step-content.fade-in {
+    animation: fadeIn 0.35s ease-out both;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* =========================================
+   CUSTOM PROFICIENCY TOGGLE
+   ========================================= */
+.custom-prof-toggle {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, 0.22);
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.custom-prof-toggle:hover {
+    border-color: #d4af37;
+    box-shadow: 0 0 7px rgba(212, 175, 55, 0.35);
+}
+
+.custom-prof-toggle.active {
+    background: #d4af37;
+    border-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.55);
+}
+
+/* =========================================
+   SHEET ACTIONS
+   ========================================= */
+.sheet-actions {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 36px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    padding-top: 28px;
+}
+
+.sheet-actions button {
+    padding: 11px 32px;
+    border-radius: 40px;
+
+    font-weight: 700;
+    font-size: 11.5px;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.25s ease;
+    border: none;
+    backdrop-filter: blur(8px);
+}
+
+.cancel-btn {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.cancel-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+}
+
+.save-btn {
+    background: rgba(212, 175, 55, 0.1);
+    color: #d4af37;
+    border: 1px solid rgba(212, 175, 55, 0.35) !important;
+}
+
+.save-btn:hover {
+    background: rgba(212, 175, 55, 0.85);
+    color: #1a0e00;
+    box-shadow: 0 0 22px rgba(212, 175, 55, 0.35);
+    transform: translateY(-1px);
+}
+
+.next-btn {
+    background: rgba(77, 166, 255, 0.1) !important;
+    color: #7ec8ff !important;
+    border: 1px solid rgba(77, 166, 255, 0.3) !important;
+}
+
+.next-btn:hover {
+    background: rgba(77, 166, 255, 0.8) !important;
+    color: #fff !important;
+    box-shadow: 0 0 22px rgba(77, 166, 255, 0.3) !important;
+    transform: translateY(-1px);
+}
+
+.final-save-btn {
+    background: rgba(80, 200, 100, 0.1) !important;
+    color: #8affb0 !important;
+    border: 1px solid rgba(80, 200, 100, 0.3) !important;
+}
+
+.final-save-btn:hover {
+    background: rgba(80, 200, 100, 0.8) !important;
+    color: #fff !important;
+    box-shadow: 0 0 22px rgba(80, 200, 100, 0.3) !important;
+    transform: translateY(-1px);
+}
+
+/* =========================================
+   WEAPONS / SPELLS (Step 2 — glass)
+   ========================================= */
+.weapons-section, .spells-section {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 28px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    margin-top: 30px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+}
+
+.section-header h2 {
+    margin: 0;
+
+    font-size: 15px;
+    font-weight: 700;
+    color: rgba(212, 175, 55, 0.9);
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+}
+
+.add-weapon-btn, .add-spell-btn {
+    background: rgba(212, 175, 55, 0.08);
+    color: rgba(212, 175, 55, 0.85);
+    border: 1px solid rgba(212, 175, 55, 0.28);
+    padding: 6px 14px;
+    border-radius: 20px;
+
+    font-weight: 600;
+    font-size: 10.5px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    transition: all 0.25s;
+}
+
+.add-weapon-btn:hover, .add-spell-btn:hover {
+    background: rgba(212, 175, 55, 0.75);
+    color: #1a0e00;
+    border-color: transparent;
+}
+
+/* =========================================
+   RESPONSIVE
+   ========================================= */
+@media (max-width: 1024px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+    .sheet-header { flex-direction: column; gap: 18px; }
+    .stats-grid { grid-template-columns: 1fr; }
+    .char-details-grid { grid-template-columns: 1fr 1fr; }
+    .sheet-container { padding: 24px 20px; }
+}
+
+@media (max-width: 480px) {
+    .char-name-container input { font-size: 24px; }
+    .sheet-container { padding: 18px 14px; }
+}
+/* =========================================
+   SPIN BUTTONS (NUMBER CONTROLS)
+   ========================================= */
+.number-controls, .hp-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.spin-btn {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(212, 175, 55, 0.8);
+    border-radius: 6px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    font-weight: 900;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    backdrop-filter: blur(4px);
+}
+
+.spin-btn:hover {
+    background: rgba(212, 175, 55, 0.15);
+    border-color: rgba(212, 175, 55, 0.4);
+    color: #fff;
+    transform: scale(1.05);
+}
+
+.spin-btn:active {
+    transform: scale(0.95);
+}

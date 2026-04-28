@@ -4,10 +4,9 @@ import LoginForm from './Components/LoginForm/LoginForm.jsx';
 import ResetPasswordForm from './Components/LoginForm/ResetPasswordForm'; // We will create this next
 import MainMenu from './Components/MainMenu/MainMenu.jsx';
 import CharacterManager from './Components/CharacterManager/CharacterManager.jsx';
-import CharacterSheet from './Components/CraracterSheet/CharacterSheet.jsx';
+import CharacterSheet from './Components/CharacterSheet/CharacterSheet.jsx';
 import HostGame from './Components/HostGame/HostGame.jsx';
 import GMDashboard from './Components/GMDashboard/GMDashboard.jsx';
-
 function App() {
   return (
     <Router>

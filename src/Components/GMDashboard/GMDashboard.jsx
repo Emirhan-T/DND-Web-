@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import SummaryStep from '../CraracterSheet/SummaryStep'; 
+import SummaryStep from '../CharacterSheet/SummaryStep';
 import './GMDashboard.css';
 
 const GMDashboard = () => {
@@ -12,6 +12,7 @@ const GMDashboard = () => {
     const [isBottomOpen, setIsBottomOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isHudOpen, setIsHudOpen] = useState(true);
+    const [isDrawingMenuOpen, setIsDrawingMenuOpen] = useState(true);
 
     // --- OYUN & ZAR STATE'LERİ ---
     const gameCode = "EPIC2026";
@@ -24,7 +25,10 @@ const GMDashboard = () => {
     const [bottomTab, setBottomTab] = useState('maps'); 
     const [maps, setMaps] = useState([]);
     const [images, setImages] = useState([]);
-    const [activeCanvas, setActiveCanvas] = useState(null); 
+    
+    const [board, setBoard] = useState({ x: 0, y: 0, scale: 1, rotation: 0 });
+    const [onScreenMedia, setOnScreenMedia] = useState([]); 
+    const [draggedMedia, setDraggedMedia] = useState(null);
     const fileInputRef = useRef(null);
 
     // --- HARİTA KİLİDİ VE SÜRÜKLEME ---
@@ -35,7 +39,7 @@ const GMDashboard = () => {
     // --- ÇİZİM ARAÇLARI (YENİ) ---
     const [activeTool, setActiveTool] = useState('cursor'); // cursor, marker, eraser, laser, line, circle, cone
     const [drawingColor, setDrawingColor] = useState('#ff4d4d');
-    const [canvasSize, setCanvasSize] = useState({ w: 1920, h: 1080 }); // Harita yüklenince güncellenir
+    const [canvasSize, setCanvasSize] = useState({ w: 4000, h: 4000 }); // Varsayılan büyük çizim alanı
     
     const mainCanvasRef = useRef(null); // Kalıcı çizimler (Marker, Silgi)
     const overlayCanvasRef = useRef(null); // Geçici çizimler (Lazer, Koniler)
@@ -64,39 +68,41 @@ const GMDashboard = () => {
     const handleGlobalMouseMove = (e) => {
         if (draggedToken) {
             setTokens(prev => prev.map(t => t.id === draggedToken.id ? { ...t, x: e.clientX - draggedToken.offsetX, y: e.clientY - draggedToken.offsetY } : t));
-        } else if (isDragging && activeCanvas && !isCanvasLocked && activeTool === 'cursor') {
-            setActiveCanvas(prev => ({ ...prev, x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }));
+        } else if (draggedMedia) {
+            const dx = (e.clientX - draggedMedia.lastX) / board.scale;
+            const dy = (e.clientY - draggedMedia.lastY) / board.scale;
+            setOnScreenMedia(prev => prev.map(m => m.id === draggedMedia.id ? { ...m, x: m.x + dx, y: m.y + dy } : m));
+            setDraggedMedia(prev => ({ ...prev, lastX: e.clientX, lastY: e.clientY }));
+        } else if (isDragging && !isCanvasLocked && activeTool === 'cursor') {
+            setBoard(prev => ({ ...prev, x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }));
         }
     };
-    const handleGlobalMouseUp = () => { setIsDragging(false); setDraggedToken(null); };
+    const handleGlobalMouseUp = () => { setIsDragging(false); setDraggedToken(null); setDraggedMedia(null); };
+
+    const handleMediaMouseDown = (e, media) => {
+        if (activeTool !== 'cursor') return;
+        e.stopPropagation();
+        setDraggedMedia({ id: media.id, lastX: e.clientX, lastY: e.clientY });
+    };
 
     // --- ÇİZİM MOTORU HANDLERS ---
     const handleCanvasMouseDown = (e) => {
-        // Eğer Cursor seçiliyse veya Harita kitli değilse sürüklemeye (pan) izin ver
-        if (activeTool === 'cursor') {
-            if (!isCanvasLocked && activeCanvas) {
-                setIsDragging(true);
-                setDragStart({ x: e.clientX - activeCanvas.x, y: e.clientY - activeCanvas.y });
-            }
-            return;
-        }
+    e.stopPropagation(); // Artık sadece çizim araçları seçiliyken tetiklenecek
+    isDrawingRef.current = true;
+    const pos = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY };
+    startPosRef.current = pos;
 
-        // Çizim başlıyor
-        e.stopPropagation();
-        isDrawingRef.current = true;
-        const pos = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY };
-        startPosRef.current = pos;
-
-        if (['marker', 'eraser', 'laser'].includes(activeTool)) {
-            const ctx = activeTool === 'laser' ? overlayCanvasRef.current.getContext('2d') : mainCanvasRef.current.getContext('2d');
-            ctx.beginPath();
-            ctx.moveTo(pos.x, pos.y);
-            ctx.strokeStyle = activeTool === 'eraser' ? 'rgba(0,0,0,1)' : drawingColor;
-            ctx.lineWidth = activeTool === 'eraser' ? 40 : 6; // Silgi kalınlığı
-            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-            ctx.globalCompositeOperation = activeTool === 'eraser' ? 'destination-out' : 'source-over';
-        }
-    };
+    if (['marker', 'eraser', 'laser'].includes(activeTool)) {
+        const ctx = activeTool === 'laser' ? overlayCanvasRef.current.getContext('2d') : mainCanvasRef.current.getContext('2d');
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+        ctx.strokeStyle = activeTool === 'eraser' ? 'rgba(0,0,0,1)' : drawingColor;
+        ctx.lineWidth = activeTool === 'eraser' ? 40 : 6;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        // Silgi mantığı burada context üzerinden harika çalışır
+        ctx.globalCompositeOperation = activeTool === 'eraser' ? 'destination-out' : 'source-over';
+    }
+};
 
     const handleCanvasMouseMove = (e) => {
         if (!isDrawingRef.current || activeTool === 'cursor') return;
@@ -188,6 +194,9 @@ const GMDashboard = () => {
     const removeToken = () => { setTokens(prev => prev.filter(t => t.id !== tokenModal.data.id)); closeTokenModal(); };
     const handleAddQuickToken = (color) => { setTokens(prev => [...prev, { id: Date.now(), color, size: 1, name: '', hp: '', maxHp: '', ac: '', speed: '', init: '', x: window.innerWidth / 2, y: window.innerHeight / 2 }]); };
     const handleClearTokens = () => { setTokens([]); };
+    const handleAddPlayerToken = (p) => {
+        setTokens(prev => [...prev, { id: Date.now() + Math.random(), color: 'blue', size: 1, name: p.name, hp: p.currentHp, maxHp: p.maxHp, ac: p.armorClass, speed: p.speed, init: calculateModifier(p.stats.Dexterity), x: window.innerWidth / 2, y: window.innerHeight / 2 }]);
+    };
 
     // --- MEDYA HANDLERS ---
     const handleFileUpload = (e) => {
@@ -198,21 +207,34 @@ const GMDashboard = () => {
     };
 
     const handleMediaDelete = (id, e) => {
-        e.stopPropagation();
-        if(!window.confirm("Silmek istediğine emin misin?")) return;
-        if (bottomTab === 'maps') setMaps(prev => prev.filter(m => m.id !== id)); else setImages(prev => prev.filter(img => img.id !== id));
-        if(activeCanvas && (maps.find(m => m.id === id) || images.find(img => img.id === id))) setActiveCanvas(null);
-    };
+    e.stopPropagation();
+    if(!window.confirm("Silmek istediğine emin misin?")) return;
+    
+    // Bellek temizliği (Memory Leak Fix)
+    const itemToDelete = bottomTab === 'maps' ? maps.find(m => m.id === id) : images.find(img => img.id === id);
+    if (itemToDelete) URL.revokeObjectURL(itemToDelete.url);
+
+    if (bottomTab === 'maps') setMaps(prev => prev.filter(m => m.id !== id)); 
+    else setImages(prev => prev.filter(img => img.id !== id));
+    
+    setOnScreenMedia(prev => prev.filter(m => m.mediaId !== id));
+};
 
     const handleShowOnCanvas = (item, type) => { 
-        setActiveCanvas({ url: item.url, scale: 1, rotation: 0, type, x: 0, y: 0 }); 
+        setOnScreenMedia(prev => [...prev, {
+            id: Date.now() + Math.random(),
+            mediaId: item.id,
+            url: item.url,
+            x: 2000 - 300, 
+            y: 2000 - 300
+        }]);
         setIsCanvasLocked(false);
         setActiveTool('cursor');
     };
 
     const handleCanvasTransform = (action) => {
-        if (!activeCanvas || isCanvasLocked) return;
-        setActiveCanvas(prev => {
+        if (isCanvasLocked) return;
+        setBoard(prev => {
             let { scale, rotation, x, y } = prev;
             if (action === 'zoomIn') scale = Math.min(10, scale + 0.1);
             if (action === 'zoomOut') scale = Math.max(0.1, scale - 0.1);
@@ -238,50 +260,68 @@ const GMDashboard = () => {
         <div className="gm-dashboard-wrapper" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp} onMouseLeave={handleGlobalMouseUp}>
             
             {/* ================= ÇİZİM ARAÇLARI MENÜSÜ ================= */}
-            <div className="drawing-tools-menu">
-                <button type="button" className={`tool-btn ${activeTool === 'cursor' ? 'active' : ''}`} onClick={() => setActiveTool('cursor')} title="Move Map (Cursor)">👆</button>
-                <div className="tool-divider"></div>
-                <button type="button" className={`tool-btn ${activeTool === 'marker' ? 'active' : ''}`} onClick={() => setActiveTool('marker')} title="Draw (Marker)">🖍️</button>
-                <button type="button" className={`tool-btn ${activeTool === 'laser' ? 'active' : ''}`} onClick={() => setActiveTool('laser')} title="Laser Pointer (Fades)">⚡</button>
-                <button type="button" className={`tool-btn ${activeTool === 'line' ? 'active' : ''}`} onClick={() => setActiveTool('line')} title="Measure Line">📏</button>
-                <button type="button" className={`tool-btn ${activeTool === 'circle' ? 'active' : ''}`} onClick={() => setActiveTool('circle')} title="Measure Circle">⭕</button>
-                <button type="button" className={`tool-btn ${activeTool === 'cone' ? 'active' : ''}`} onClick={() => setActiveTool('cone')} title="Measure Cone">📐</button>
-                <button type="button" className={`tool-btn ${activeTool === 'eraser' ? 'active' : ''}`} onClick={() => setActiveTool('eraser')} title="Eraser">🧽</button>
-                <div className="tool-divider"></div>
-                <input type="color" className="color-picker-tool" value={drawingColor} onChange={(e) => setDrawingColor(e.target.value)} title="Color" />
-                <button type="button" className="tool-btn danger" onClick={handleClearDrawings} title="Clear All Drawings">🗑️</button>
+            <div className={`drawing-tools-menu ${isTopOpen ? 'top-open' : 'top-closed'} ${isDrawingMenuOpen ? 'expanded' : 'collapsed'}`}>
+                <button type="button" className="tool-btn" style={{background: 'transparent', color: '#d4af37', padding: 0, margin: 0, border: 'none', width: '20px'}} onClick={() => setIsDrawingMenuOpen(!isDrawingMenuOpen)} title="Toggle Drawing Tools">
+                    {isDrawingMenuOpen ? '▶' : '◀'}
+                </button>
+                {isDrawingMenuOpen && (
+                    <>
+                        <div className="tool-divider"></div>
+                        <button type="button" className={`tool-btn ${activeTool === 'cursor' ? 'active' : ''}`} onClick={() => setActiveTool('cursor')} title="Move Map (Cursor)">👆</button>
+                        <div className="tool-divider"></div>
+                        <button type="button" className={`tool-btn ${activeTool === 'marker' ? 'active' : ''}`} onClick={() => setActiveTool('marker')} title="Draw (Marker)">🖍️</button>
+                        <button type="button" className={`tool-btn ${activeTool === 'laser' ? 'active' : ''}`} onClick={() => setActiveTool('laser')} title="Laser Pointer (Fades)">⚡</button>
+                        <button type="button" className={`tool-btn ${activeTool === 'line' ? 'active' : ''}`} onClick={() => setActiveTool('line')} title="Measure Line">📏</button>
+                        <button type="button" className={`tool-btn ${activeTool === 'circle' ? 'active' : ''}`} onClick={() => setActiveTool('circle')} title="Measure Circle">⭕</button>
+                        <button type="button" className={`tool-btn ${activeTool === 'cone' ? 'active' : ''}`} onClick={() => setActiveTool('cone')} title="Measure Cone">📐</button>
+                        <button type="button" className={`tool-btn ${activeTool === 'eraser' ? 'active' : ''}`} onClick={() => setActiveTool('eraser')} title="Eraser">🧽</button>
+                        <div className="tool-divider"></div>
+                        <input type="color" className="color-picker-tool" value={drawingColor} onChange={(e) => setDrawingColor(e.target.value)} title="Color" />
+                        <button type="button" className="tool-btn danger" onClick={handleClearDrawings} title="Clear All Drawings">🗑️</button>
+                    </>
+                )}
             </div>
 
             {/* ================= LAYER 0: MAP, ÇİZİM & TOKENS ================= */}
             <div className="layer-map">
-                {activeCanvas ? (
-                    <div className="canvas-view-area">
-                        {/* KRAL: Resim ve Çizimler aynı grupta beraber hareket eder */}
-                        <div 
-                            className="canvas-transform-group"
-                            style={{
-                                width: canvasSize.w, height: canvasSize.h,
-                                transform: `translate(${activeCanvas.x}px, ${activeCanvas.y}px) scale(${activeCanvas.scale}) rotate(${activeCanvas.rotation}deg)`,
-                                cursor: activeTool === 'cursor' ? (isDragging ? 'grabbing' : 'grab') : 'crosshair'
-                            }}
-                        >
-                            {/* Ana Harita Resmi */}
-                            <img 
-                                src={activeCanvas.url} alt="Map" className="map-base-img" draggable="false"
-                                onLoad={(e) => setCanvasSize({w: e.target.naturalWidth, h: e.target.naturalHeight})}
-                            />
-                            
-                            {/* Kalıcı Çizimler (Fırça, Silgi) */}
-                            <canvas ref={mainCanvasRef} width={canvasSize.w} height={canvasSize.h} className="drawing-canvas main-canvas" />
-                            
-                            {/* Geçici Çizimler (Lazer, Koni vs.) & Event Dinleyici */}
-                            <canvas 
-                                ref={overlayCanvasRef} width={canvasSize.w} height={canvasSize.h} className="drawing-canvas overlay-canvas"
-                                onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseOut={handleCanvasMouseUp}
-                            />
-                        </div>
+                <div className="canvas-view-area">
+                    {/* KRAL: Resim ve Çizimler aynı grupta beraber hareket eder */}
+                    <div 
+                        className="canvas-transform-group"
+                        style={{
+                            width: canvasSize.w, height: canvasSize.h,
+                            transform: `translate(${board.x}px, ${board.y}px) scale(${board.scale}) rotate(${board.rotation}deg)`,
+                            cursor: activeTool === 'cursor' ? (isDragging ? 'grabbing' : 'grab') : 'crosshair'
+                        }}
+                    >
+                        {/* Haritalar ve Resimler */}
+                        {onScreenMedia.map(media => (
+                            <div key={media.id} style={{ position: 'absolute', left: media.x, top: media.y, cursor: activeTool === 'cursor' ? 'grab' : 'inherit' }}>
+                                <button type="button" className="close-media-btn" onClick={(e) => { e.stopPropagation(); setOnScreenMedia(prev => prev.filter(m => m.id !== media.id)); }} title="Remove from board" style={{position:'absolute', top:-15, right:-15, background:'rgba(255,77,77,0.8)', color:'#fff', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer', zIndex:10}}>✕</button>
+                                <img src={media.url} alt="Media" draggable="false" style={{maxWidth: '800px', maxHeight: '800px', display: 'block'}} onMouseDown={(e) => handleMediaMouseDown(e, media)} />
+                            </div>
+                        ))}
+                        
+                        {/* Kalıcı Çizimler (Fırça, Silgi) */}
+                        <canvas ref={mainCanvasRef} width={canvasSize.w} height={canvasSize.h} className="drawing-canvas main-canvas" />
+                        
+                        {/* Geçici Çizimler (Lazer, Koni vs.) & Event Dinleyici */}
+                        <canvas 
+                            ref={overlayCanvasRef} width={canvasSize.w} height={canvasSize.h} className="drawing-canvas overlay-canvas"
+                            onMouseDown={(e) => {
+                                if (activeTool === 'cursor' && !isCanvasLocked) {
+                                    setIsDragging(true);
+                                    setDragStart({ x: e.clientX - board.x, y: e.clientY - board.y });
+                                } else {
+                                    handleCanvasMouseDown(e);
+                                }
+                            }} 
+                            onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseOut={handleCanvasMouseUp}
+                        />
+                    </div>
 
-                        {/* Harita Kontrolleri ve Kilit Sistemi */}
+                    {/* Harita Kontrolleri ve Kilit Sistemi */}
+                    {onScreenMedia.length > 0 && (
                         <div className="canvas-controls">
                             <button type="button" className={`lock-canvas-btn ${isCanvasLocked ? 'locked' : 'unlocked'}`} onClick={() => setIsCanvasLocked(!isCanvasLocked)} title="Lock/Unlock Map">
                                 {isCanvasLocked ? '🔒 LOCKED' : '🔓 UNLOCKED'}
@@ -289,16 +329,14 @@ const GMDashboard = () => {
                             
                             {!isCanvasLocked && (
                                 <>
-                                    <div className="zoom-ctrls"><button type="button" onClick={() => handleCanvasTransform('zoomOut')}>[-]</button><span>Zoom: {activeCanvas.scale.toFixed(1)}x</span><button type="button" onClick={() => handleCanvasTransform('zoomIn')}>[+]</button></div>
+                                    <div className="zoom-ctrls"><button type="button" onClick={() => handleCanvasTransform('zoomOut')}>[-]</button><span>Zoom: {board.scale.toFixed(1)}x</span><button type="button" onClick={() => handleCanvasTransform('zoomIn')}>[+]</button></div>
                                     <div className="rotate-ctrls"><button type="button" onClick={() => handleCanvasTransform('rotateLeft')}>↺</button><span>Free Rotate</span><button type="button" onClick={() => handleCanvasTransform('rotateRight')}>↻</button></div>
                                     <button type="button" className="reset-canvas-btn" onClick={() => handleCanvasTransform('reset')}>↩ RESET</button>
                                 </>
                             )}
                         </div>
-                    </div>
-                ) : (
-                    <div className="canvas-placeholder-text"><span>🗺️ BATTLEMAP CANVAS</span><br/>Select a map from the bottom menu</div>
-                )}
+                    )}
+                </div>
 
                 {/* GRID */}
                 {grid.isVisible && (
@@ -317,7 +355,11 @@ const GMDashboard = () => {
                 {tokens.map(token => (
                     <div 
                         key={token.id} className={`map-token color-${token.color} ${draggedToken?.id === token.id ? 'dragging' : ''}`}
-                        style={{ left: token.x, top: token.y, width: grid.size * token.size * 0.85, height: grid.size * token.size * 0.85 }}
+                        style={{ 
+                            left: token.x, top: token.y, 
+                            width: grid.size * token.size * 0.85, height: grid.size * token.size * 0.85,
+                            pointerEvents: activeTool !== 'cursor' ? 'none' : 'auto'
+                        }}
                         onMouseDown={(e) => handleTokenMouseDown(e, token)} onDoubleClick={() => openTokenModal('edit', token)} title="Double-click to edit"
                     >
                         {token.maxHp && (<div className="token-hp-bar"><div className="token-hp-fill" style={{ width: `${Math.min(100, Math.max(0, (token.hp / token.maxHp) * 100))}%` }}></div></div>)}
@@ -378,8 +420,8 @@ const GMDashboard = () => {
                             <button type="button" className={`tab-btn ${bottomTab === 'maps' ? 'active' : ''}`} onClick={() => setBottomTab('maps')}>🗺️ MAPS</button>
                             <button type="button" className={`tab-btn ${bottomTab === 'images' ? 'active' : ''}`} onClick={() => setBottomTab('images')}>🖼️ IMAGES</button>
                         </div>
-                        <button type="button" className={`tab-btn ${bottomTab === 'grid' ? 'active' : ''}`} onClick={() => setBottomTab('grid')} style={{marginTop: '5px', borderColor: '#7ec8ff', color: '#7ec8ff'}}>📐 GRID & TOKENS</button>
-                        {(bottomTab === 'maps' || bottomTab === 'images') && (<button type="button" className="upload-media-btn" style={{marginTop: '10px'}} onClick={() => fileInputRef.current?.click()}>+ UPLOAD {bottomTab === 'maps' ? 'MAP' : 'IMAGE'}</button>)}
+                        <button type="button" className={`tab-btn ${bottomTab === 'grid' ? 'active' : ''}`} onClick={() => setBottomTab('grid')} style={{borderColor: '#7ec8ff', color: '#7ec8ff'}}>📐 GRID & TOKENS</button>
+                        {(bottomTab === 'maps' || bottomTab === 'images') && (<button type="button" className="upload-media-btn" onClick={() => fileInputRef.current?.click()}>+ UPLOAD {bottomTab === 'maps' ? 'MAP' : 'IMAGE'}</button>)}
                     </div>
                     <div className="media-gallery">
                         {bottomTab === 'grid' ? (
@@ -404,6 +446,12 @@ const GMDashboard = () => {
                                         <button type="button" className="token-btn dark" onClick={() => handleAddQuickToken('dark')}></button>
                                         <button type="button" className="custom-token-btn" onClick={() => openTokenModal('create')}>+ CUSTOM</button>
                                         <button type="button" className="clear-tokens-btn" onClick={handleClearTokens}>CLEAR</button>
+                                    </div>
+                                    <h4 style={{marginTop: '15px', color: '#d4af37', fontFamily: 'Cinzel', fontSize: '13px', borderBottom: '1px solid rgba(212,175,55,0.2)', paddingBottom: '5px'}}>PLAYER TOKENS</h4>
+                                    <div className="token-buttons-row">
+                                        {players.map(p => (
+                                            <button key={p.id} type="button" className="custom-token-btn" style={{padding: '4px 10px'}} onClick={() => handleAddPlayerToken(p)}>{p.name}</button>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
