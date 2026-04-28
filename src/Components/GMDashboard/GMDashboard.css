@@ -350,7 +350,7 @@ button {
 /* --- TOKEN İSİM ETİKETİ & CAN BARI --- */
 .token-name-tag {
     position: absolute;
-    bottom: -22px;
+    top: -34px;
     left: 50%;
     transform: translateX(-50%);
     background: rgba(0, 0, 0, 0.7);
@@ -375,6 +375,24 @@ button {
     overflow: hidden;
     pointer-events: none;
     border: 1px solid rgba(0, 0, 0, 0.8);
+}
+
+/* Savaş sırasında sırası gelen tokeni vurgula */
+.map-token.active-turn-token {
+    box-shadow: 0 0 15px 5px #ff4d4d, inset 0 0 10px #ff4d4d !important;
+    border-color: #ff4d4d !important;
+    animation: active-token-pulse 1.5s infinite;
+}
+
+@keyframes active-token-pulse {
+    0% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 15px 5px #ff4d4d, inset 0 0 10px #ff4d4d; }
+    50% { transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 0 25px 10px #ff4d4d, inset 0 0 20px #ff4d4d; }
+    100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 15px 5px #ff4d4d, inset 0 0 10px #ff4d4d; }
+}
+
+.map-token.active-turn-token:hover {
+    transform: translate(-50%, -50%) scale(1.1);
+    animation: none;
 }
 
 .token-hp-fill {
@@ -1298,4 +1316,175 @@ input[type="checkbox"]:checked {
     color: #ff4d4d;
     background: rgba(255, 77, 77, 0.1);
     border: 1px solid rgba(255, 77, 77, 0.4);
+}
+
+/* ================= YENİ EKLENEN COMBAT & STATUS CSS ================= */
+.combat-stats-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 10px 10px 10px;
+    font-family: 'Cinzel', serif;
+    color: #ff4d4d;
+    font-weight: bold;
+    border-bottom: 1px solid rgba(255, 77, 77, 0.3);
+    margin-bottom: 10px;
+}
+
+.combat-card.active-turn {
+    border-color: #ff4d4d;
+    background: rgba(255, 77, 77, 0.15);
+    transform: scale(1.02);
+    box-shadow: 0 0 10px rgba(255, 77, 77, 0.3);
+}
+
+.p-init-tag {
+    background: rgba(255, 77, 77, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: #ffaa00;
+}
+
+.combat-card-statuses {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px dashed rgba(255,255,255,0.1);
+}
+
+.status-badge-small {
+    background: rgba(150, 50, 250, 0.3);
+    border: 1px solid rgba(150, 50, 250, 0.6);
+    color: #e0b0ff;
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+.combat-next-btn {
+    width: 100%;
+    margin-top: 15px;
+    background: rgba(255, 77, 77, 0.2);
+    border: 1px solid rgba(255, 77, 77, 0.5);
+    color: #fff;
+}
+.combat-next-btn:hover {
+    background: #ff4d4d;
+    color: #fff;
+    box-shadow: 0 0 15px rgba(255, 77, 77, 0.5);
+}
+
+.npc-sheet-container {
+    width: 350px !important;
+}
+
+.npc-stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.npc-stat-box {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 10px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.npc-stat-box strong {
+    color: #d4af37;
+    font-size: 11px;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+}
+
+.npc-stat-box span {
+    font-size: 18px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.npc-statuses-box h4 {
+    color: #d4af37;
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+    padding-bottom: 5px;
+}
+
+.npc-status-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.status-badge {
+    background: rgba(150, 50, 250, 0.2);
+    border: 1px solid rgba(150, 50, 250, 0.6);
+    color: #e0b0ff;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+}
+
+.status-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.status-toggle-btn {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.6);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: 0.3s;
+}
+
+.status-toggle-btn.active {
+    background: rgba(150, 50, 250, 0.3);
+    border-color: #9632fa;
+    color: #fff;
+    box-shadow: 0 0 10px rgba(150, 50, 250, 0.3);
+}
+
+.status-toggle-btn:hover {
+    border-color: rgba(255,255,255,0.4);
+}
+
+.token-statuses-container {
+    position: absolute;
+    bottom: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 3px;
+    align-items: center;
+    pointer-events: none;
+}
+
+.token-status-icon {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #9632fa;
+    border: 1px solid #fff;
+    box-shadow: 0 0 5px #000;
+}
+
+.token-status-more {
+    font-size: 9px;
+    font-weight: bold;
+    color: #fff;
+    background: rgba(0,0,0,0.6);
+    border-radius: 4px;
+    padding: 0 2px;
 }

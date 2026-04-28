@@ -50,7 +50,10 @@ const GMDashboard = () => {
     const [grid, setGrid] = useState({ isVisible: false, type: 'square', size: 60, rotation: 0, opacity: 0.5 });
     const [tokens, setTokens] = useState([]);
     const [draggedToken, setDraggedToken] = useState(null);
-    const [tokenModal, setTokenModal] = useState({ isOpen: false, mode: 'create', data: { id: null, name: '', color: 'blue', size: 1, hp: '', maxHp: '', ac: '', speed: '', init: '' } });
+    const [tokenModal, setTokenModal] = useState({ isOpen: false, mode: 'create', data: { id: null, name: '', color: 'blue', size: 1, hp: '', maxHp: '', ac: '', speed: '', init: '', statuses: [] } });
+
+    // --- SAVAŞ (COMBAT) STATE'LERİ ---
+    const [combatState, setCombatState] = useState({ isActive: false, round: 1, currentTurnIndex: 0, secondsPassed: 0 });
 
     // --- OYUNCU (MOCK DATA) ---
     const [players, setPlayers] = useState([
@@ -58,6 +61,7 @@ const GMDashboard = () => {
         { id: 'p2', name: 'Thorgal', charClass: 'Barbarian', level: 4, species: 'Orc', playerName: 'Can', stats: { Strength: 20, Dexterity: 14, Constitution: 16, Intelligence: 8, Wisdom: 10, Charisma: 10 }, proficiencies: { 'Strength-Athletics': true }, armorClass: 16, currentHp: 45, maxHp: 45, speed: 40, weapons: [{ id: 1, name: 'Greataxe', damageDice: '1d12' }], spellSlots: { 1: { max: 0, used: 0 } }, spells: [], currency: { cp: 0, sp: 0, ep: 0, gp: 10, pp: 0 }, inventory: [], traits: { personality: 'SMASH!' }, portrait: null }
     ]);
     const [selectedPlayer, setSelectedPlayer] = useState(null);
+    const [selectedNPC, setSelectedNPC] = useState(null);
     const calculateModifier = (score) => Math.floor((score - 10) / 2);
 
     useEffect(() => {
@@ -182,20 +186,63 @@ const GMDashboard = () => {
     };
 
     const openTokenModal = (mode, tokenData = null) => {
-        setTokenModal({ isOpen: true, mode, data: tokenData ? { ...tokenData } : { id: null, name: '', color: 'blue', size: 1, hp: '', maxHp: '', ac: '', speed: '', init: '' } });
+        setTokenModal({ isOpen: true, mode, data: tokenData ? { ...tokenData } : { id: null, name: '', color: 'blue', size: 1, hp: '', maxHp: '', ac: '', speed: '', init: '', statuses: [] } });
     };
     const closeTokenModal = () => setTokenModal({ isOpen: false, mode: 'create', data: {} });
 
     const saveToken = () => {
-        if (tokenModal.mode === 'create') setTokens(prev => [...prev, { ...tokenModal.data, id: Date.now(), x: window.innerWidth / 2, y: window.innerHeight / 2 }]);
-        else setTokens(prev => prev.map(t => t.id === tokenModal.data.id ? { ...tokenModal.data, x: t.x, y: t.y } : t));
+        if (tokenModal.mode === 'create') setTokens(prev => [...prev, { ...tokenModal.data, id: Date.now(), statuses: tokenModal.data.statuses || [], x: window.innerWidth / 2, y: window.innerHeight / 2 }]);
+        else setTokens(prev => prev.map(t => t.id === tokenModal.data.id ? { ...t, ...tokenModal.data } : t));
         closeTokenModal();
     };
     const removeToken = () => { setTokens(prev => prev.filter(t => t.id !== tokenModal.data.id)); closeTokenModal(); };
-    const handleAddQuickToken = (color) => { setTokens(prev => [...prev, { id: Date.now(), color, size: 1, name: '', hp: '', maxHp: '', ac: '', speed: '', init: '', x: window.innerWidth / 2, y: window.innerHeight / 2 }]); };
+    const handleAddQuickToken = (color) => { setTokens(prev => [...prev, { id: Date.now(), color, size: 1, name: '', hp: '', maxHp: '', ac: '', speed: '', init: '', statuses: [], x: window.innerWidth / 2, y: window.innerHeight / 2 }]); };
     const handleClearTokens = () => { setTokens([]); };
     const handleAddPlayerToken = (p) => {
-        setTokens(prev => [...prev, { id: Date.now() + Math.random(), color: 'blue', size: 1, name: p.name, hp: p.currentHp, maxHp: p.maxHp, ac: p.armorClass, speed: p.speed, init: calculateModifier(p.stats.Dexterity), x: window.innerWidth / 2, y: window.innerHeight / 2 }]);
+        setTokens(prev => [...prev, { id: Date.now() + Math.random(), playerId: p.id, color: 'blue', size: 1, name: p.name, hp: p.currentHp, maxHp: p.maxHp, ac: p.armorClass, speed: p.speed, init: calculateModifier(p.stats.Dexterity), statuses: [], x: window.innerWidth / 2, y: window.innerHeight / 2 }]);
+    };
+
+    // --- COMBAT HANDLERS ---
+    const handleStartCombat = () => {
+        if (tokens.length === 0) {
+            addLog("No tokens on board to start combat.", true);
+            return;
+        }
+        
+        let newTokens = [...tokens].map(t => {
+            const initBonus = parseInt(t.init) || 0;
+            const roll = Math.floor(Math.random() * 20) + 1;
+            return { ...t, initiativeRoll: roll + initBonus };
+        });
+        
+        newTokens.sort((a, b) => b.initiativeRoll - a.initiativeRoll);
+        
+        setTokens(newTokens);
+        setCombatState({ isActive: true, round: 1, currentTurnIndex: 0, secondsPassed: 0 });
+        setIsSidebarOpen(true);
+        addLog("⚔️ COMBAT INITIATED!", false);
+    };
+
+    const handleEndCombat = () => {
+        setCombatState({ isActive: false, round: 1, currentTurnIndex: 0, secondsPassed: 0 });
+        addLog("🛡️ COMBAT ENDED.", false);
+    };
+
+    const handleNextTurn = () => {
+        setCombatState(prev => {
+            let nextIndex = prev.currentTurnIndex + 1;
+            let nextRound = prev.round;
+            let nextSeconds = prev.secondsPassed;
+            
+            if (nextIndex >= tokens.length) {
+                nextIndex = 0;
+                nextRound += 1;
+                nextSeconds += 6;
+                addLog(`End of Round ${prev.round}. Starting Round ${nextRound}.`, false);
+            }
+            
+            return { ...prev, currentTurnIndex: nextIndex, round: nextRound, secondsPassed: nextSeconds };
+        });
     };
 
     // --- MEDYA HANDLERS ---
@@ -352,9 +399,9 @@ const GMDashboard = () => {
                 )}
 
                 {/* TOKENLER */}
-                {tokens.map(token => (
+                {tokens.map((token, idx) => (
                     <div 
-                        key={token.id} className={`map-token color-${token.color} ${draggedToken?.id === token.id ? 'dragging' : ''}`}
+                        key={token.id} className={`map-token color-${token.color} ${draggedToken?.id === token.id ? 'dragging' : ''} ${combatState.isActive && combatState.currentTurnIndex === idx ? 'active-turn-token' : ''}`}
                         style={{ 
                             left: token.x, top: token.y, 
                             width: grid.size * token.size * 0.85, height: grid.size * token.size * 0.85,
@@ -364,6 +411,12 @@ const GMDashboard = () => {
                     >
                         {token.maxHp && (<div className="token-hp-bar"><div className="token-hp-fill" style={{ width: `${Math.min(100, Math.max(0, (token.hp / token.maxHp) * 100))}%` }}></div></div>)}
                         {token.name && <span className="token-name-tag">{token.name}</span>}
+                        {token.statuses && token.statuses.length > 0 && (
+                            <div className="token-statuses-container">
+                                {token.statuses.slice(0, 3).map(st => <span key={st} className="token-status-icon" title={st}></span>)}
+                                {token.statuses.length > 3 && <span className="token-status-more">+{token.statuses.length - 3}</span>}
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>
@@ -375,20 +428,90 @@ const GMDashboard = () => {
                     <div className="sheet-scroll-area"><SummaryStep character={selectedPlayer} calculateModifier={calculateModifier} /></div>
                 </div>
             )}
+            
+            {selectedNPC && !selectedPlayer && (
+                <div className="layer-character-sheet fade-in npc-sheet-container">
+                    <div className="sheet-overlay-header" style={{borderBottomColor: 'rgba(255, 77, 77, 0.3)'}}>
+                        <h2 style={{color: '#ff4d4d'}}>{selectedNPC.name || 'Unknown NPC'} (NPC)</h2>
+                        <button type="button" className="close-sheet-btn" onClick={() => setSelectedNPC(null)}>✕ CLOSE</button>
+                    </div>
+                    <div className="sheet-scroll-area npc-sheet-body">
+                        <div className="npc-stat-grid">
+                            <div className="npc-stat-box"><strong>HP</strong><span>{selectedNPC.hp || '?'}/{selectedNPC.maxHp || '?'}</span></div>
+                            <div className="npc-stat-box"><strong>AC</strong><span>{selectedNPC.ac || '?'}</span></div>
+                            <div className="npc-stat-box"><strong>SPEED</strong><span>{selectedNPC.speed || '?'} ft</span></div>
+                            <div className="npc-stat-box"><strong>INIT</strong><span>+{selectedNPC.init || '0'}</span></div>
+                        </div>
+                        {selectedNPC.statuses && selectedNPC.statuses.length > 0 && (
+                            <div className="npc-statuses-box">
+                                <h4>Active Statuses</h4>
+                                <div className="npc-status-list">
+                                    {selectedNPC.statuses.map(st => <span key={st} className="status-badge">{st}</span>)}
+                                </div>
+                            </div>
+                        )}
+                        <p style={{color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginTop: '30px', fontStyle: 'italic'}}>No detailed character sheet available for this entity.</p>
+                    </div>
+                </div>
+            )}
 
-            {/* ================= LAYER 2: SOL MENÜ (Oyuncular) ================= */}
+            {/* ================= LAYER 2: SOL MENÜ (Oyuncular & Savaş) ================= */}
             <div className={`layer-sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
                 <button type="button" className="sidebar-toggle-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>{isSidebarOpen ? '◀' : '▶'}</button>
                 <div className="sidebar-content">
-                    <h3 className="sidebar-title">PARTY MEMBERS</h3>
-                    <div className="player-list">
-                        {players.map(p => (
-                            <div key={p.id} className={`player-card ${selectedPlayer?.id === p.id ? 'active' : ''}`} onClick={() => setSelectedPlayer(p)}>
-                                <div className="p-card-header"><strong>{p.name}</strong><span className="p-hp-tag">HP: {p.currentHp}/{p.maxHp}</span></div>
-                                <div className="p-card-sub">Lvl {p.level} {p.charClass}</div>
+                    {combatState.isActive ? (
+                        <>
+                            <h3 className="sidebar-title" style={{color: '#ff4d4d'}}>⚔️ COMBAT ORDER</h3>
+                            <div className="combat-stats-header">
+                                <span>Round {combatState.round}</span>
+                                <span>⏱️ {combatState.secondsPassed}s</span>
                             </div>
-                        ))}
-                    </div>
+                            <div className="player-list combat-list">
+                                {tokens.map((t, idx) => (
+                                    <div 
+                                        key={t.id} 
+                                        className={`player-card combat-card ${idx === combatState.currentTurnIndex ? 'active-turn' : ''}`} 
+                                        onClick={() => {
+                                            if (t.playerId) {
+                                                const p = players.find(player => player.id === t.playerId);
+                                                if (p) { setSelectedPlayer(p); setSelectedNPC(null); }
+                                            } else {
+                                                setSelectedNPC(t);
+                                                setSelectedPlayer(null);
+                                            }
+                                        }}
+                                    >
+                                        <div className="p-card-header">
+                                            <strong>{idx === combatState.currentTurnIndex ? '▶ ' : ''}{t.name || 'Unknown'}</strong>
+                                            <span className="p-init-tag">Init: {t.initiativeRoll}</span>
+                                        </div>
+                                        <div className="p-card-sub" style={{display: 'flex', justifyContent: 'space-between'}}>
+                                            <span>HP: {t.hp || '?'}/{t.maxHp || '?'}</span>
+                                            <span>AC: {t.ac || '?'}</span>
+                                        </div>
+                                        {t.statuses && t.statuses.length > 0 && (
+                                            <div className="combat-card-statuses">
+                                                {t.statuses.map(st => <span key={st} className="status-badge-small">{st}</span>)}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            <button type="button" className="action-btn combat-next-btn" onClick={handleNextTurn}>⏭️ NEXT TURN</button>
+                        </>
+                    ) : (
+                        <>
+                            <h3 className="sidebar-title">PARTY MEMBERS</h3>
+                            <div className="player-list">
+                                {players.map(p => (
+                                    <div key={p.id} className={`player-card ${selectedPlayer?.id === p.id ? 'active' : ''}`} onClick={() => { setSelectedPlayer(p); setSelectedNPC(null); }}>
+                                        <div className="p-card-header"><strong>{p.name}</strong><span className="p-hp-tag">HP: {p.currentHp}/{p.maxHp}</span></div>
+                                        <div className="p-card-sub">Lvl {p.level} {p.charClass}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -401,7 +524,11 @@ const GMDashboard = () => {
                         <div className="player-count-badge">👥 Players: {players.length}</div>
                     </div>
                     <div className="top-right">
-                        <button type="button" className="action-btn combat-btn" onClick={() => addLog("⚔️ COMBAT INITIATED!", false)}>START COMBAT</button>
+                        {combatState.isActive ? (
+                            <button type="button" className="action-btn combat-btn" style={{background: '#ff4d4d', color: '#fff'}} onClick={handleEndCombat}>END COMBAT</button>
+                        ) : (
+                            <button type="button" className="action-btn combat-btn" onClick={handleStartCombat}>START COMBAT</button>
+                        )}
                         <button type="button" className="action-btn rest-btn" onClick={handleLongRest}>🏕️ LONG REST</button>
                     </div>
                 </div>
@@ -514,7 +641,30 @@ const GMDashboard = () => {
                             <label>Speed: <input type="number" value={tokenModal.data.speed} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, speed: e.target.value}})} /></label>
                         </div>
                         
-                        <div className="grid-controls-row"><label>Initiative Bonus: <input type="number" value={tokenModal.data.init} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, init: e.target.value}})} /></label></div>
+                        <div className="grid-controls-row" style={{marginBottom: '15px'}}><label>Initiative Bonus: <input type="number" value={tokenModal.data.init} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, init: e.target.value}})} /></label></div>
+
+                        <div className="host-input-group" style={{marginBottom: '20px'}}>
+                            <label>Status Effects</label>
+                            <div className="status-grid">
+                                {['Konsantrasyon', 'Bilinçsizlik', 'Bitkinlik', 'Cezbedilme', 'Etkisiz Hal', 'Felç', 'Görünmezlik', 'Korkma', 'Körlük', 'Kısıtlanma', 'Sağırlık', 'Sersemleme', 'Taşa Dönme', 'Yakalanma', 'Yere Düşme', 'Zehirlenme'].map(st => {
+                                    const isSelected = tokenModal.data.statuses?.includes(st);
+                                    return (
+                                        <button 
+                                            key={st} type="button" 
+                                            className={`status-toggle-btn ${isSelected ? 'active' : ''}`}
+                                            onClick={() => {
+                                                const newStatuses = isSelected 
+                                                    ? tokenModal.data.statuses.filter(s => s !== st)
+                                                    : [...(tokenModal.data.statuses || []), st];
+                                                setTokenModal({...tokenModal, data: {...tokenModal.data, statuses: newStatuses}});
+                                            }}
+                                        >
+                                            {st}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
 
                         <div className="modal-actions">
                             {tokenModal.mode === 'edit' && <button type="button" className="modal-delete-btn" style={{marginRight: 'auto'}} onClick={removeToken}>DELETE</button>}
