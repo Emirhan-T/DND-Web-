@@ -7,6 +7,9 @@ import CharacterManager from './Components/CharacterManager/CharacterManager.jsx
 import CharacterSheet from './Components/CharacterSheet/CharacterSheet.jsx';
 import HostGame from './Components/HostGame/HostGame.jsx';
 import GMDashboard from './Components/GMDashboard/GMDashboard.jsx';
+import JoinGame from './Components/JoinGame/JoinGame.jsx';
+import PlayerDashboard from './Components/PlayerDashboard/PlayerDashboard.jsx';
+
 function App() {
   return (
     <Router>
@@ -21,6 +24,8 @@ function App() {
         <Route path="/character-sheet" element={<CharacterSheet />} />
         <Route path="/host-game" element={<HostGame />} />
         <Route path="/gm-dashboard" element={<GMDashboard />} />
+        <Route path="/join-game" element={<JoinGame />} />
+        <Route path="/player-dashboard" element={<PlayerDashboard />} />
       </Routes>
     </Router>
   );

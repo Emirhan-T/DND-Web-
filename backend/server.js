@@ -1,32 +1,111 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const mongoose = require('mongoose');
-const cors = require('cors'); // 1. CORS'U İÇERİ ALDIK
+const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
+const server = http.createServer(app);
+
+// Socket.io kurulumu - frontend'den gelen bağlantılara izin ver
+const io = new Server(server, {
+    cors: {
+        origin: 'http://localhost:3000',
+        methods: ['GET', 'POST']
+    }
+});
+
 const PORT = 5001;
 
-// Middleware'ler
-app.use(cors()); // 2. REACT'TEN GELEN İSTEKLERE İZİN VERDİK
+// ===================== MIDDLEWARE =====================
+app.use(cors({ origin: 'http://localhost:3000' }));
 app.use(express.json());
-/*
-// Veritabanı bağlantısı
+
+// ===================== MONGODB BAĞLANTISI =====================
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("Kral, MongoDB bağlantısı başarılı!"))
-  .catch((err) => console.log("MongoDB bağlantı hatası:", err));
-*/
-// 3. ROTALARI BAĞLIYORUZ
+    .then(() => console.log('✅ MongoDB bağlantısı başarılı!'))
+    .catch((err) => console.log('❌ MongoDB bağlantı hatası:', err));
+
+// ===================== HTTP ROUTES =====================
 const authRoutes = require('./routes/auth');
-// Eğer frontend '/api/auth' ile başlayan bir istek atarsa, authRoutes dosyasına git diyoruz
 app.use('/api/auth', authRoutes);
 
 const characterRoutes = require('./routes/character');
 app.use('/api/characters', characterRoutes);
 
+const gameRoutes = require('./routes/game');
+app.use('/api/games', gameRoutes);
+
 app.get('/', (req, res) => {
-    res.send("Backend sunucusu tıkır tıkır çalışıyor!");
+    res.send('🎲 DnD Backend - Tıkır tıkır çalışıyor!');
 });
 
-app.listen(PORT, () => {
-    console.log(`Sunucu ${PORT} portunda ayaklandı!`);
+// ===================== SOCKET.IO GERÇEK ZAMANLI MOTOR =====================
+// Her oyun "odası" = gameCode
+// Tüm bağlı kullanıcılar aynı odaya (gameCode'a) abone olur
+
+io.on('connection', (socket) => {
+    console.log(`🔌 Yeni bağlantı: ${socket.id}`);
+
+    // --- OYUN ODASINA KATIL ---
+    socket.on('join_room', ({ gameCode, playerName }) => {
+        socket.join(gameCode);
+        console.log(`👤 ${playerName} odaya katıldı: ${gameCode}`);
+        // Odadaki herkese bildir
+        socket.to(gameCode).emit('player_joined', { playerName });
+    });
+
+    // --- OYUN ODASINDAN AYRIL ---
+    socket.on('leave_room', ({ gameCode, playerName }) => {
+        socket.leave(gameCode);
+        socket.to(gameCode).emit('player_left', { playerName });
+    });
+
+    // --- ZAR ATIŞI (Herkes görsün) ---
+    socket.on('dice_roll', ({ gameCode, playerName, rollText, isHidden }) => {
+        if (isHidden) {
+            // Sadece GM'e gönder (ileride GM socket ID takibi ile)
+            socket.to(gameCode).emit('log_update', { text: `[HIDDEN ROLL by ${playerName}]`, type: 'hidden' });
+        } else {
+            // Odadaki herkese gönder
+            io.to(gameCode).emit('log_update', { text: rollText, type: 'dice', playerName });
+        }
+    });
+
+    // --- GM HARITA/TOKEN GÜNCELLEMESİ ---
+    socket.on('gm_map_update', ({ gameCode, mapUrl }) => {
+        // GM'den gelen haritayı tüm oyunculara gönder
+        socket.to(gameCode).emit('map_changed', { mapUrl });
+    });
+
+    // --- GM TOKEN GÜNCELLEMESİ ---
+    socket.on('gm_token_update', ({ gameCode, tokens }) => {
+        socket.to(gameCode).emit('tokens_updated', { tokens });
+    });
+
+    // --- GM COMBAT DURUMU ---
+    socket.on('gm_combat_update', ({ gameCode, combatState, tokens }) => {
+        socket.to(gameCode).emit('combat_updated', { combatState, tokens });
+    });
+
+    // --- GM OYUNCU CAN GÜNCELLEMESİ ---
+    socket.on('gm_hp_update', ({ gameCode, playerId, currentHp }) => {
+        io.to(gameCode).emit('hp_changed', { playerId, currentHp });
+    });
+
+    // --- GENEL LOG MESAJI ---
+    socket.on('send_log', ({ gameCode, text, type }) => {
+        io.to(gameCode).emit('log_update', { text, type: type || 'info' });
+    });
+
+    // --- BAĞLANTI KESİLDİ ---
+    socket.on('disconnect', () => {
+        console.log(`🔌 Bağlantı kesildi: ${socket.id}`);
+    });
+});
+
+// ===================== SUNUCUYU BAŞLAT =====================
+server.listen(PORT, () => {
+    console.log(`🚀 Sunucu ${PORT} portunda ayaklandı!`);
 });

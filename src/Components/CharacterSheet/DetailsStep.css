@@ -117,13 +117,15 @@
 .weapon-name:focus { border-color: #d4af37; }
 
 .weapon-stats-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
-    gap: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
     margin-bottom: 16px;
 }
 
 .weapon-input-group {
+    flex: 1;
+    min-width: 90px;
     display: flex;
     flex-direction: column;
     background: rgba(255, 255, 255, 0.02);
@@ -150,7 +152,10 @@
 }
 
 /* Zar Butonları */
-.damage-dice-group { min-width: 150px; }
+.damage-dice-group { 
+    flex: 2;
+    min-width: 150px; 
+}
 .dice-input-wrapper { display: flex; align-items: center; }
 .dice-input-wrapper input { flex: 1; }
 .clear-dice-btn { background: transparent; border: none; color: rgba(255, 255, 255, 0.2); cursor: pointer; }

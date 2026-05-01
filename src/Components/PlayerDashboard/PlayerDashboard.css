@@ -1,0 +1,674 @@
+/* =========================================
+   PlayerDashboard.css — GMDashboard ile aynı mimari
+   position: absolute katmanlar, iç içe DEĞİL
+   ========================================= */
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Exo+2:ital,wght@0,300;0,400;0,600;0,700;0,900;1,400&display=swap');
+
+/* ===================== KÖK WRAPPER ===================== */
+.pd-wrapper {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100vw; height: 100vh;
+    overflow: hidden;
+    background-color: #1a1a2e !important;
+    background-image: none !important;
+    color: #fff;
+    font-family: 'Exo 2', sans-serif;
+    z-index: 1;
+}
+
+/* Global input/button reset (GMDashboard ile aynı) */
+.pd-wrapper input,
+.pd-wrapper select,
+.pd-wrapper button {
+    color: #fff;
+    background: transparent;
+    outline: none;
+    border: none;
+    font-family: 'Exo 2', sans-serif;
+}
+
+/* ===================== LAYER 0: MAP (z-index: 1) ===================== */
+.pd-layer-map {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.pd-board-placeholder {
+    text-align: center;
+    color: rgba(255,255,255,0.35);
+    pointer-events: none;
+    user-select: none;
+}
+.pd-board-placeholder-icon {
+    font-size: 64px;
+    display: block;
+    margin-bottom: 16px;
+    color: rgba(212,175,55,0.5);
+}
+.pd-board-placeholder h3 {
+    font-family: 'Cinzel', serif;
+    font-size: 22px;
+    letter-spacing: 4px;
+    color: rgba(212,175,55,0.6);
+    margin: 0 0 10px 0;
+}
+.pd-board-placeholder p {
+    font-size: 14px;
+    color: rgba(255,255,255,0.35);
+    margin: 0;
+}
+
+.pd-game-map {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+/* Tokenlar (read-only) */
+.pd-map-token {
+    position: absolute;
+    z-index: 3;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.8);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.8);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+.pd-map-token.active-turn-token {
+    border-color: #d4af37 !important;
+    box-shadow: 0 0 20px 8px rgba(212,175,55,0.7) !important;
+    animation: pd-token-pulse 1.5s infinite;
+}
+@keyframes pd-token-pulse {
+    0%, 100% { box-shadow: 0 0 15px 5px rgba(212,175,55,0.5); }
+    50% { box-shadow: 0 0 30px 12px rgba(212,175,55,0.8); }
+}
+.pd-token-name-tag {
+    position: absolute; top: -28px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.75); color: #fff;
+    padding: 2px 6px; border-radius: 4px;
+    font-size: 10px; white-space: nowrap;
+}
+.pd-token-hp-bar {
+    position: absolute; top: -8px; left: 10%; right: 10%;
+    height: 4px; background: rgba(255,77,77,0.3); border-radius: 2px; overflow: hidden;
+}
+.pd-token-hp-fill { height: 100%; background: #4caf50; }
+
+/* Token renkleri */
+.color-blue   { background: radial-gradient(circle at 30% 30%, #60a5fa, #1d4ed8); }
+.color-red    { background: radial-gradient(circle at 30% 30%, #f87171, #b91c1c); }
+.color-green  { background: radial-gradient(circle at 30% 30%, #34d399, #047857); }
+.color-yellow { background: radial-gradient(circle at 30% 30%, #facc15, #a16207); }
+.color-purple { background: radial-gradient(circle at 30% 30%, #c084fc, #7e22ce); }
+.color-dark   { background: radial-gradient(circle at 30% 30%, #4a4a4a, #111); }
+
+/* ===================== LAYER 1: SOL SIDEBAR (z-index: 6) ===================== */
+/* GMDashboard'daki .layer-sidebar ile birebir aynı */
+.pd-layer-sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 300px;
+    z-index: 6;
+    background: rgba(0,0,0,0.44);
+    border-right: 1px solid rgba(255,255,255,0.14);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+}
+.pd-layer-sidebar.closed {
+    transform: translateX(-100%);
+}
+
+.pd-sidebar-toggle-btn {
+    position: absolute;
+    right: -24px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 60px;
+    background: rgba(0,0,0,0.44);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-left: none;
+    border-radius: 0 12px 12px 0;
+    color: #d4af37;
+    cursor: pointer;
+    backdrop-filter: blur(24px);
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pd-sidebar-content {
+    /* Üst menü açıkken üst padding, kapalıyken de kaymasın diye sabit */
+    padding: 90px 20px 20px 20px;
+    height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Sidebar başlığı */
+.pd-sidebar-title {
+    font-family: 'Cinzel', serif;
+    color: #d4af37;
+    text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 14px;
+    margin: 0 0 4px 0;
+    letter-spacing: 2px;
+    font-size: 14px;
+}
+
+/* Stats Grid (2x3) */
+.pd-attrs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.pd-attr-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.pd-attr-card:hover {
+    border-color: rgba(212,175,55,0.3);
+    background: rgba(212,175,55,0.05);
+}
+.pd-attr-card.selected {
+    border-color: #d4af37;
+    background: rgba(212,175,55,0.1);
+}
+.pd-attr-abbr {
+    font-family: 'Cinzel', serif;
+    font-size: 10px;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 1px;
+}
+.pd-attr-card.selected .pd-attr-abbr { color: #d4af37; }
+.pd-attr-score {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+}
+.pd-attr-mod {
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+}
+.pd-attr-card.selected .pd-attr-mod { color: rgba(212,175,55,0.8); }
+
+/* Skill Header */
+.pd-skill-header {
+    background: rgba(212,175,55,0.05);
+    border: 1px solid rgba(212,175,55,0.15);
+    border-radius: 10px;
+    padding: 12px 14px;
+    text-align: center;
+}
+.pd-skill-header h3 {
+    font-family: 'Cinzel', serif;
+    color: #d4af37;
+    font-size: 16px;
+    margin: 0 0 8px 0;
+    letter-spacing: 2px;
+}
+.pd-roll-stat-btn {
+    width: 100%;
+    padding: 8px;
+    background: rgba(212,175,55,0.1);
+    border: 1px solid rgba(212,175,55,0.3) !important;
+    color: #d4af37 !important;
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+    letter-spacing: 1px;
+}
+.pd-roll-stat-btn:hover {
+    background: rgba(212,175,55,0.2);
+}
+
+/* Skill List */
+.pd-skills-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.pd-skill-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: 0.15s;
+}
+.pd-skill-row:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.05);
+}
+.pd-skill-row.proficient {
+    border-color: rgba(212,175,55,0.15);
+}
+.pd-prof-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.25);
+    flex-shrink: 0;
+}
+.pd-prof-dot.active {
+    background: #d4af37;
+    border-color: #d4af37;
+    box-shadow: 0 0 4px rgba(212,175,55,0.6);
+}
+.pd-skill-name {
+    flex: 1;
+    font-family: 'Cinzel', serif;
+    font-size: 13px;
+    color: rgba(255,255,255,0.7);
+}
+.pd-skill-row.proficient .pd-skill-name { color: #fff; font-weight: 600; }
+.pd-skill-bonus {
+    font-size: 16px;
+    font-weight: 700;
+    color: #d4af37;
+    min-width: 28px;
+    text-align: right;
+}
+
+/* ===================== LAYER 2: HUD (SAĞ LOG PANELİ) (z-index: 6) ===================== */
+/* GMDashboard'daki .layer-hud ile aynı */
+.pd-layer-hud {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 320px;
+    z-index: 6;
+    background: rgba(0,0,0,0.44);
+    border-left: 1px solid rgba(255,255,255,0.14);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+    display: flex;
+    flex-direction: column;
+}
+.pd-layer-hud.closed {
+    transform: translateX(100%);
+}
+
+.pd-hud-toggle-btn {
+    position: absolute;
+    left: -24px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 60px;
+    background: rgba(0,0,0,0.44);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-right: none;
+    border-radius: 12px 0 0 12px;
+    color: #d4af37;
+    cursor: pointer;
+    backdrop-filter: blur(24px);
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pd-hud-content {
+    padding: 90px 16px 16px 16px;
+    height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* HUD İçi: Game Code */
+.pd-hud-code-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed rgba(212,175,55,0.35);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: 'Cinzel', serif;
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+}
+.pd-hud-code-row span {
+    color: #d4af37;
+    font-weight: 700;
+    letter-spacing: 2px;
+}
+
+/* HUD: Bağlantı Durumu */
+.pd-connection-dot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-family: 'Cinzel', serif;
+}
+.pd-connection-dot.connected { color: #34d399; }
+.pd-connection-dot.disconnected { color: #ff4d4d; }
+.pd-dot { width: 8px; height: 8px; border-radius: 50%; }
+.pd-connection-dot.connected .pd-dot { background: #34d399; box-shadow: 0 0 6px #34d399; }
+.pd-connection-dot.disconnected .pd-dot { background: #ff4d4d; }
+
+/* HUD: Combat Mini Sırası */
+.pd-combat-order-box {
+    background: rgba(255,77,77,0.04);
+    border: 1px solid rgba(255,77,77,0.2);
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+.pd-combat-order-title {
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    color: #ff8080;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+}
+.pd-combat-order-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+    font-family: 'Cinzel', serif;
+}
+.pd-combat-order-row.active {
+    background: rgba(212,175,55,0.12);
+    color: #d4af37;
+    font-weight: 700;
+    border: 1px solid rgba(212,175,55,0.2);
+}
+.pd-init-badge {
+    font-size: 11px;
+    color: rgba(255,255,255,0.35);
+}
+
+/* HUD: Log Container */
+.pd-log-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    overflow: hidden;
+    min-height: 0; /* flex shrink için */
+}
+.pd-log-box-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    background: rgba(212,175,55,0.04);
+    border-bottom: 1px solid rgba(212,175,55,0.12);
+    font-family: 'Cinzel', serif;
+    font-size: 12px;
+    color: #d4af37;
+    flex-shrink: 0;
+}
+.pd-log-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.pd-log-entry {
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.pd-log-time { color: rgba(255,255,255,0.25); font-size: 10px; margin-right: 6px; }
+.pd-log-text { color: rgba(255,255,255,0.8); }
+
+/* Log renk tipleri */
+.pd-log-entry.log-dice .pd-log-text    { color: #d4af37; }
+.pd-log-entry.log-success .pd-log-text { color: #34d399; }
+.pd-log-entry.log-combat .pd-log-text  { color: #ff8080; font-weight: 700; }
+.pd-log-entry.log-damage .pd-log-text  { color: #f87171; }
+.pd-log-entry.log-hidden .pd-log-text  { color: rgba(255,255,255,0.3); font-style: italic; }
+
+/* ===================== LAYER 3: ÜST MENÜ (z-index: 10) ===================== */
+/* GMDashboard'daki .layer-top-menu ile birebir aynı */
+.pd-layer-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: rgba(0,0,0,0.44);
+    border-bottom: 1px solid rgba(255,255,255,0.14);
+    border-bottom-color: rgba(212,175,55,0.25);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+}
+.pd-layer-top.closed {
+    transform: translateY(-100%);
+}
+
+.pd-top-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 24px;
+    gap: 20px;
+}
+
+.pd-top-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.pd-top-handle {
+    position: absolute;
+    bottom: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    color: #d4af37;
+    padding: 4px 24px;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    backdrop-filter: blur(12px);
+    white-space: nowrap;
+}
+
+/* Karakter bilgisi */
+.pd-char-info { display: flex; flex-direction: column; }
+.pd-char-name {
+    font-family: 'Cinzel', serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: #d4af37;
+}
+.pd-char-sub {
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+}
+
+/* Combat stat kutuları */
+.pd-top-combat-stats {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 8px 16px;
+}
+.pd-top-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.pd-top-stat label {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    color: rgba(212,175,55,0.7);
+    letter-spacing: 1px;
+}
+.pd-top-stat input {
+    background: transparent;
+    border: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.15) !important;
+    color: #fff;
+    font-size: 17px;
+    font-weight: 700;
+    width: 46px;
+    text-align: center;
+    transition: 0.2s;
+}
+.pd-top-stat input:focus { border-bottom-color: #d4af37 !important; }
+
+.pd-hp-inputs { display: flex; align-items: center; gap: 4px; }
+.pd-hp-divider { color: rgba(255,255,255,0.25); font-size: 14px; }
+.pd-hp-current { color: #4caf50 !important; }
+
+.pd-prof-val {
+    font-size: 17px;
+    font-weight: 700;
+    color: #7ec8ff;
+}
+
+/* İlham butonu */
+.pd-insp-btn {
+    background: rgba(0,0,0,0.3) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    color: rgba(255,255,255,0.45) !important;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-family: 'Cinzel', serif;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.3s;
+    letter-spacing: 1px;
+}
+.pd-insp-btn.active {
+    background: rgba(212,175,55,0.12) !important;
+    border-color: #d4af37 !important;
+    color: #d4af37 !important;
+    box-shadow: 0 0 12px rgba(212,175,55,0.25);
+}
+
+/* Exit butonu */
+.pd-exit-btn {
+    background: transparent !important;
+    color: #ff4d4d !important;
+    border: 1px solid rgba(255,77,77,0.4) !important;
+    padding: 7px 14px;
+    border-radius: 20px;
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+.pd-exit-btn:hover {
+    background: rgba(255,77,77,0.8) !important;
+    color: #fff !important;
+}
+
+/* Combat göstergesi */
+.pd-combat-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.pd-combat-label {
+    font-family: 'Cinzel', serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: #ff4d4d;
+    padding: 5px 14px;
+    background: rgba(255,77,77,0.1);
+    border: 1px solid rgba(255,77,77,0.4);
+    border-radius: 20px;
+    animation: pd-combat-glow 1.5s infinite;
+}
+@keyframes pd-combat-glow {
+    0%, 100% { box-shadow: 0 0 5px rgba(255,77,77,0.3); }
+    50%       { box-shadow: 0 0 15px rgba(255,77,77,0.6); }
+}
+.pd-round-label {
+    font-family: 'Cinzel', serif;
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+}
+
+/* ===================== SENİN SIRAN UYARISI (z-index: 50) ===================== */
+.pd-my-turn-alert {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 50;
+    background: rgba(212,175,55,0.95);
+    color: #0d0d1a;
+    font-family: 'Cinzel', serif;
+    font-size: 32px;
+    font-weight: 900;
+    padding: 18px 48px;
+    border-radius: 14px;
+    box-shadow: 0 0 60px rgba(212,175,55,0.8);
+    letter-spacing: 4px;
+    pointer-events: none;
+    animation: pd-turn-pop 0.3s ease;
+}
+@keyframes pd-turn-pop {
+    from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+    to   { transform: translate(-50%, -50%) scale(1);   opacity: 1; }
+}
+
+/* ===================== SCROLLBAR ===================== */
+.pd-sidebar-content::-webkit-scrollbar,
+.pd-hud-content::-webkit-scrollbar,
+.pd-log-scroll::-webkit-scrollbar { width: 5px; }
+.pd-sidebar-content::-webkit-scrollbar-track,
+.pd-hud-content::-webkit-scrollbar-track,
+.pd-log-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+.pd-sidebar-content::-webkit-scrollbar-thumb,
+.pd-hud-content::-webkit-scrollbar-thumb,
+.pd-log-scroll::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.3); border-radius: 10px; }

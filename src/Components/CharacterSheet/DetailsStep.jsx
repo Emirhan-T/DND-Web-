@@ -228,6 +228,7 @@ const DetailsStep = ({
                                     <li><strong>Range:</strong> <input value={spell.range} onChange={(e) => handleSpellChange(spell.id, 'range', e.target.value)} placeholder="60 ft" /></li>
                                     <li><strong>Components:</strong> <input value={spell.components} onChange={(e) => handleSpellChange(spell.id, 'components', e.target.value)} placeholder="V, S, M" /></li>
                                     <li><strong>Duration:</strong> <input value={spell.duration} onChange={(e) => handleSpellChange(spell.id, 'duration', e.target.value)} placeholder="Instantaneous" /></li>
+                                    <li><strong>Higher Levels:</strong> <input value={spell.higherLevel || ''} onChange={(e) => handleSpellChange(spell.id, 'higherLevel', e.target.value)} placeholder="Effects at higher levels..." /></li>
                                 </ul>
                                 <div className="spell-desc-box">
                                     <textarea value={spell.description} onChange={(e) => handleSpellChange(spell.id, 'description', e.target.value)} placeholder="Spell effects..." />

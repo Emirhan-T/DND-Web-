@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SummaryStep from '../CharacterSheet/SummaryStep';
+import socket from '../../socket';
 import './GMDashboard.css';
 
 const GMDashboard = () => {
@@ -15,7 +16,18 @@ const GMDashboard = () => {
     const [isDrawingMenuOpen, setIsDrawingMenuOpen] = useState(true);
 
     // --- OYUN & ZAR STATE'LERİ ---
-    const gameCode = "EPIC2026";
+    const gameCode = "EPIC2026"; // TODO: Backend'den dinamik olarak alınacak
+
+    // Socket bağlantısı: GM odayı başlatır
+    useEffect(() => {
+        socket.connect();
+        socket.emit('join_room', { gameCode, playerName: 'GM' });
+        return () => {
+            socket.emit('leave_room', { gameCode, playerName: 'GM' });
+            socket.disconnect();
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const [logs, setLogs] = useState([{ id: 1, text: "Campaign Started. Waiting for players...", isHidden: false }]);
     const [diceQty, setDiceQty] = useState(1);
     const [diceType, setDiceType] = useState(20);
@@ -45,12 +57,39 @@ const GMDashboard = () => {
     const overlayCanvasRef = useRef(null); // Geçici çizimler (Lazer, Koniler)
     const isDrawingRef = useRef(false);
     const startPosRef = useRef({ x: 0, y: 0 });
+    const clearDrawingsTimeoutRef = useRef(null);
+    const animationFrameRef = useRef(null);
+    const lastMousePos = useRef({ x: 0, y: 0 });
+
+    useEffect(() => {
+        // Tool değişirse varolan zamanlayıcıları temizle
+        if (clearDrawingsTimeoutRef.current) {
+            clearTimeout(clearDrawingsTimeoutRef.current);
+            clearDrawingsTimeoutRef.current = null;
+        }
+    }, [activeTool]);
+
+    // --- BESTIARY STATE'LERİ ---
+    const DEFAULT_BESTIARY = [
+        { id: 'def_1', name: 'Goblin', color: 'green', size: 1, hp: 7, maxHp: 7, ac: 15, speed: 30, init: 2, statuses: [] },
+        { id: 'def_2', name: 'Orc', color: 'red', size: 1, hp: 15, maxHp: 15, ac: 13, speed: 30, init: 1, statuses: [] },
+        { id: 'def_3', name: 'Skeleton', color: 'dark', size: 1, hp: 13, maxHp: 13, ac: 13, speed: 30, init: 2, statuses: [] },
+        { id: 'def_4', name: 'Bandit', color: 'yellow', size: 1, hp: 11, maxHp: 11, ac: 12, speed: 30, init: 1, statuses: [] },
+        { id: 'def_5', name: 'Young Dragon', color: 'red', size: 2, hp: 130, maxHp: 130, ac: 18, speed: 40, init: 4, statuses: [] },
+    ];
+    const [bestiaryModalOpen, setBestiaryModalOpen] = useState(false);
+    const [bestiarySearch, setBestiarySearch] = useState('');
+    const [bestiaryTab, setBestiaryTab] = useState('default');
+    const [customMonsters, setCustomMonsters] = useState(() => {
+        const saved = localStorage.getItem('gm_custom_monsters');
+        return saved ? JSON.parse(saved) : [];
+    });
 
     // --- GRID & TOKEN STATE'LERİ ---
     const [grid, setGrid] = useState({ isVisible: false, type: 'square', size: 60, rotation: 0, opacity: 0.5 });
     const [tokens, setTokens] = useState([]);
     const [draggedToken, setDraggedToken] = useState(null);
-    const [tokenModal, setTokenModal] = useState({ isOpen: false, mode: 'create', data: { id: null, name: '', color: 'blue', size: 1, hp: '', maxHp: '', ac: '', speed: '', init: '', statuses: [] } });
+    const [tokenModal, setTokenModal] = useState({ isOpen: false, mode: 'create', data: { id: null, name: '', color: 'blue', size: 1, hp: '', maxHp: '', ac: '', speed: '', init: '', statuses: [], isHidden: false }, statusDurationInput: '' });
 
     // --- SAVAŞ (COMBAT) STATE'LERİ ---
     const [combatState, setCombatState] = useState({ isActive: false, round: 1, currentTurnIndex: 0, secondsPassed: 0 });
@@ -70,18 +109,42 @@ const GMDashboard = () => {
 
     // --- EVRENSEL SÜRÜKLEME (PAN & TOKEN) ---
     const handleGlobalMouseMove = (e) => {
-        if (draggedToken) {
-            setTokens(prev => prev.map(t => t.id === draggedToken.id ? { ...t, x: e.clientX - draggedToken.offsetX, y: e.clientY - draggedToken.offsetY } : t));
-        } else if (draggedMedia) {
-            const dx = (e.clientX - draggedMedia.lastX) / board.scale;
-            const dy = (e.clientY - draggedMedia.lastY) / board.scale;
-            setOnScreenMedia(prev => prev.map(m => m.id === draggedMedia.id ? { ...m, x: m.x + dx, y: m.y + dy } : m));
-            setDraggedMedia(prev => ({ ...prev, lastX: e.clientX, lastY: e.clientY }));
-        } else if (isDragging && !isCanvasLocked && activeTool === 'cursor') {
-            setBoard(prev => ({ ...prev, x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }));
+        if (!draggedToken && !draggedMedia && !isDragging) return;
+        
+        lastMousePos.current = { x: e.clientX, y: e.clientY };
+        
+        if (!animationFrameRef.current) {
+            animationFrameRef.current = requestAnimationFrame(() => {
+                const clientX = lastMousePos.current.x;
+                const clientY = lastMousePos.current.y;
+                
+                if (draggedToken) {
+                    setTokens(prev => prev.map(t => t.id === draggedToken.id ? { ...t, x: clientX - draggedToken.offsetX, y: clientY - draggedToken.offsetY } : t));
+                } else if (draggedMedia) {
+                    setDraggedMedia(prev => {
+                        if (!prev) return prev;
+                        const dx = (clientX - prev.lastX) / board.scale;
+                        const dy = (clientY - prev.lastY) / board.scale;
+                        setOnScreenMedia(prevMedia => prevMedia.map(m => m.id === prev.id ? { ...m, x: m.x + dx, y: m.y + dy } : m));
+                        return { ...prev, lastX: clientX, lastY: clientY };
+                    });
+                } else if (isDragging && !isCanvasLocked && activeTool === 'cursor') {
+                    setBoard(prev => ({ ...prev, x: clientX - dragStart.x, y: clientY - dragStart.y }));
+                }
+                animationFrameRef.current = null;
+            });
         }
     };
-    const handleGlobalMouseUp = () => { setIsDragging(false); setDraggedToken(null); setDraggedMedia(null); };
+
+    const handleGlobalMouseUp = () => { 
+        setIsDragging(false); 
+        setDraggedToken(null); 
+        setDraggedMedia(null); 
+        if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+        }
+    };
 
     const handleMediaMouseDown = (e, media) => {
         if (activeTool !== 'cursor') return;
@@ -91,22 +154,21 @@ const GMDashboard = () => {
 
     // --- ÇİZİM MOTORU HANDLERS ---
     const handleCanvasMouseDown = (e) => {
-    e.stopPropagation(); // Artık sadece çizim araçları seçiliyken tetiklenecek
-    isDrawingRef.current = true;
-    const pos = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY };
-    startPosRef.current = pos;
+        e.stopPropagation(); // Artık sadece çizim araçları seçiliyken tetiklenecek
+        isDrawingRef.current = true;
+        const pos = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY };
+        startPosRef.current = pos;
 
-    if (['marker', 'eraser', 'laser'].includes(activeTool)) {
-        const ctx = activeTool === 'laser' ? overlayCanvasRef.current.getContext('2d') : mainCanvasRef.current.getContext('2d');
-        ctx.beginPath();
-        ctx.moveTo(pos.x, pos.y);
-        ctx.strokeStyle = activeTool === 'eraser' ? 'rgba(0,0,0,1)' : drawingColor;
-        ctx.lineWidth = activeTool === 'eraser' ? 40 : 6;
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        // Silgi mantığı burada context üzerinden harika çalışır
-        ctx.globalCompositeOperation = activeTool === 'eraser' ? 'destination-out' : 'source-over';
-    }
-};
+        if (['marker', 'eraser', 'laser'].includes(activeTool)) {
+            const ctx = activeTool === 'laser' ? overlayCanvasRef.current.getContext('2d') : mainCanvasRef.current.getContext('2d');
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+            ctx.strokeStyle = activeTool === 'eraser' ? 'rgba(0,0,0,1)' : drawingColor;
+            ctx.lineWidth = activeTool === 'eraser' ? 40 : 6;
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.globalCompositeOperation = activeTool === 'eraser' ? 'destination-out' : 'source-over';
+        }
+    };
 
     const handleCanvasMouseMove = (e) => {
         if (!isDrawingRef.current || activeTool === 'cursor') return;
@@ -167,8 +229,10 @@ const GMDashboard = () => {
         
         // Geçici araçlarsa (Lazer ve Ölçümler) 1.5 saniye sonra ekranı temizle
         if (['laser', 'line', 'circle', 'cone'].includes(activeTool)) {
-            setTimeout(() => {
+            if (clearDrawingsTimeoutRef.current) clearTimeout(clearDrawingsTimeoutRef.current);
+            clearDrawingsTimeoutRef.current = setTimeout(() => {
                 if (overlayCanvasRef.current) overlayCanvasRef.current.getContext('2d').clearRect(0, 0, canvasSize.w, canvasSize.h);
+                clearDrawingsTimeoutRef.current = null;
             }, 1500);
         }
     };
@@ -186,7 +250,7 @@ const GMDashboard = () => {
     };
 
     const openTokenModal = (mode, tokenData = null) => {
-        setTokenModal({ isOpen: true, mode, data: tokenData ? { ...tokenData } : { id: null, name: '', color: 'blue', size: 1, hp: '', maxHp: '', ac: '', speed: '', init: '', statuses: [] } });
+        setTokenModal({ isOpen: true, mode, data: tokenData ? { ...tokenData } : { id: null, name: '', color: 'blue', size: 1, hp: '', maxHp: '', ac: '', speed: '', init: '', statuses: [], isHidden: false } });
     };
     const closeTokenModal = () => setTokenModal({ isOpen: false, mode: 'create', data: {} });
 
@@ -195,7 +259,55 @@ const GMDashboard = () => {
         else setTokens(prev => prev.map(t => t.id === tokenModal.data.id ? { ...t, ...tokenModal.data } : t));
         closeTokenModal();
     };
-    const removeToken = () => { setTokens(prev => prev.filter(t => t.id !== tokenModal.data.id)); closeTokenModal(); };
+    const removeToken = () => { 
+        const tokenId = tokenModal.data.id;
+        const indexToRemove = tokens.findIndex(t => t.id === tokenId);
+        
+        setTokens(prev => prev.filter(t => t.id !== tokenId)); 
+        
+        if (combatState.isActive && indexToRemove !== -1) {
+            setCombatState(prevCombat => {
+                let newIndex = prevCombat.currentTurnIndex;
+                if (indexToRemove < prevCombat.currentTurnIndex) {
+                    newIndex -= 1;
+                } else if (indexToRemove === prevCombat.currentTurnIndex) {
+                    if (newIndex >= tokens.length - 1) { 
+                        newIndex = 0;
+                    }
+                }
+                return { ...prevCombat, currentTurnIndex: Math.max(0, newIndex) };
+            });
+        }
+        
+        closeTokenModal(); 
+    };
+    
+    // --- BESTIARY HANDLERS ---
+    const saveToBestiary = () => {
+        if (!tokenModal.data.name) {
+            alert("Lütfen kaydetmeden önce yaratığa bir isim verin!");
+            return;
+        }
+        const newMonster = { ...tokenModal.data, id: 'cust_' + Date.now() };
+        const updated = [...customMonsters, newMonster];
+        setCustomMonsters(updated);
+        localStorage.setItem('gm_custom_monsters', JSON.stringify(updated));
+        alert(`${newMonster.name} kütüphaneye kaydedildi!`);
+    };
+
+    const spawnFromBestiary = (monster) => {
+        setTokens(prev => [...prev, { ...monster, id: Date.now() + Math.random(), x: window.innerWidth / 2, y: window.innerHeight / 2 }]);
+        setBestiaryModalOpen(false);
+    };
+
+    const deleteCustomMonster = (id, e) => {
+        e.stopPropagation();
+        if(!window.confirm("Bu yaratığı kütüphaneden silmek istediğinize emin misiniz?")) return;
+        const updated = customMonsters.filter(m => m.id !== id);
+        setCustomMonsters(updated);
+        localStorage.setItem('gm_custom_monsters', JSON.stringify(updated));
+    };
+
     const handleAddQuickToken = (color) => { setTokens(prev => [...prev, { id: Date.now(), color, size: 1, name: '', hp: '', maxHp: '', ac: '', speed: '', init: '', statuses: [], x: window.innerWidth / 2, y: window.innerHeight / 2 }]); };
     const handleClearTokens = () => { setTokens([]); };
     const handleAddPlayerToken = (p) => {
@@ -218,17 +330,44 @@ const GMDashboard = () => {
         newTokens.sort((a, b) => b.initiativeRoll - a.initiativeRoll);
         
         setTokens(newTokens);
-        setCombatState({ isActive: true, round: 1, currentTurnIndex: 0, secondsPassed: 0 });
+        const newCombatState = { isActive: true, round: 1, currentTurnIndex: 0, secondsPassed: 0 };
+        setCombatState(newCombatState);
         setIsSidebarOpen(true);
         addLog("⚔️ COMBAT INITIATED!", false);
+        // Savaşı oyunculara bildir
+        socket.emit('gm_combat_update', { gameCode, combatState: newCombatState, tokens: newTokens });
     };
 
     const handleEndCombat = () => {
-        setCombatState({ isActive: false, round: 1, currentTurnIndex: 0, secondsPassed: 0 });
+        const endedCombat = { isActive: false, round: 1, currentTurnIndex: 0, secondsPassed: 0 };
+        setCombatState(endedCombat);
         addLog("🛡️ COMBAT ENDED.", false);
+        socket.emit('gm_combat_update', { gameCode, combatState: endedCombat, tokens });
     };
 
     const handleNextTurn = () => {
+        // Sırası biten tokenin süreli durumlarını azalt
+        const endingToken = tokens[combatState.currentTurnIndex];
+        if (endingToken && endingToken.statuses && endingToken.statuses.length > 0) {
+            setTokens(prev => prev.map((t, idx) => {
+                if (idx !== combatState.currentTurnIndex) return t;
+                const updatedStatuses = t.statuses
+                    .map(st => {
+                        if (typeof st === 'string') return st;
+                        return { ...st, duration: st.duration - 1 };
+                    })
+                    .filter(st => {
+                        if (typeof st === 'string') return true;
+                        if (st.duration <= 0) {
+                            addLog(`⏳ ${t.name}: ${st.name} has expired.`, false);
+                            return false;
+                        }
+                        return true;
+                    });
+                return { ...t, statuses: updatedStatuses };
+            }));
+        }
+
         setCombatState(prev => {
             let nextIndex = prev.currentTurnIndex + 1;
             let nextRound = prev.round;
@@ -254,18 +393,18 @@ const GMDashboard = () => {
     };
 
     const handleMediaDelete = (id, e) => {
-    e.stopPropagation();
-    if(!window.confirm("Silmek istediğine emin misin?")) return;
-    
-    // Bellek temizliği (Memory Leak Fix)
-    const itemToDelete = bottomTab === 'maps' ? maps.find(m => m.id === id) : images.find(img => img.id === id);
-    if (itemToDelete) URL.revokeObjectURL(itemToDelete.url);
+        e.stopPropagation();
+        if(!window.confirm("Silmek istediğine emin misin?")) return;
+        
+        // Bellek temizliği (Memory Leak Fix)
+        const itemToDelete = bottomTab === 'maps' ? maps.find(m => m.id === id) : images.find(img => img.id === id);
+        if (itemToDelete) URL.revokeObjectURL(itemToDelete.url);
 
-    if (bottomTab === 'maps') setMaps(prev => prev.filter(m => m.id !== id)); 
-    else setImages(prev => prev.filter(img => img.id !== id));
-    
-    setOnScreenMedia(prev => prev.filter(m => m.mediaId !== id));
-};
+        if (bottomTab === 'maps') setMaps(prev => prev.filter(m => m.id !== id)); 
+        else setImages(prev => prev.filter(img => img.id !== id));
+        
+        setOnScreenMedia(prev => prev.filter(m => m.mediaId !== id));
+    };
 
     const handleShowOnCanvas = (item, type) => { 
         setOnScreenMedia(prev => [...prev, {
@@ -277,6 +416,9 @@ const GMDashboard = () => {
         }]);
         setIsCanvasLocked(false);
         setActiveTool('cursor');
+        // Haritayı oyunculara paylaş
+        socket.emit('gm_map_update', { gameCode, mapUrl: item.url });
+        addLog('🗺️ Harita oyunculara paylaşıldı.', false);
     };
 
     const handleCanvasTransform = (action) => {
@@ -299,7 +441,10 @@ const GMDashboard = () => {
     const handleRollDice = () => {
         let total = 0; let rolls = [];
         for(let i = 0; i < diceQty; i++) { let r = Math.floor(Math.random() * diceType) + 1; rolls.push(r); total += r; }
-        addLog(`GM Rolled ${diceQty}d${diceType} 🎲 [${rolls.join(', ')}] = ${total}`, isHiddenRoll);
+        const rollText = `GM Rolled ${diceQty}d${diceType} 🎲 [${rolls.join(', ')}] = ${total}`;
+        addLog(rollText, isHiddenRoll);
+        // Oyuncuların log paneline gönder
+        socket.emit('dice_roll', { gameCode, playerName: 'GM', rollText, isHidden: isHiddenRoll });
         if(!isHudOpen) setIsHudOpen(true);
     };
 
@@ -401,7 +546,7 @@ const GMDashboard = () => {
                 {/* TOKENLER */}
                 {tokens.map((token, idx) => (
                     <div 
-                        key={token.id} className={`map-token color-${token.color} ${draggedToken?.id === token.id ? 'dragging' : ''} ${combatState.isActive && combatState.currentTurnIndex === idx ? 'active-turn-token' : ''}`}
+                        key={token.id} className={`map-token color-${token.color} ${draggedToken?.id === token.id ? 'dragging' : ''} ${combatState.isActive && combatState.currentTurnIndex === idx ? 'active-turn-token' : ''} ${token.isHidden ? 'token-hidden' : ''}`}
                         style={{ 
                             left: token.x, top: token.y, 
                             width: grid.size * token.size * 0.85, height: grid.size * token.size * 0.85,
@@ -409,11 +554,23 @@ const GMDashboard = () => {
                         }}
                         onMouseDown={(e) => handleTokenMouseDown(e, token)} onDoubleClick={() => openTokenModal('edit', token)} title="Double-click to edit"
                     >
+                        {token.isHidden && <span className="token-hidden-icon" title="Hidden from Players">👁️‍🗨️</span>}
                         {token.maxHp && (<div className="token-hp-bar"><div className="token-hp-fill" style={{ width: `${Math.min(100, Math.max(0, (token.hp / token.maxHp) * 100))}%` }}></div></div>)}
                         {token.name && <span className="token-name-tag">{token.name}</span>}
                         {token.statuses && token.statuses.length > 0 && (
                             <div className="token-statuses-container">
-                                {token.statuses.slice(0, 3).map(st => <span key={st} className="token-status-icon" title={st}></span>)}
+                                {token.statuses.slice(0, 3).map(st => {
+                                    const stName = typeof st === 'string' ? st : st.name;
+                                    const stDuration = typeof st === 'string' ? null : st.duration;
+                                    let extraClass = '';
+                                    if (stName === 'Concentration') extraClass = 'st-conc';
+                                    if (stName === 'Invisible') extraClass = 'st-inv';
+                                    return (
+                                        <span key={stName} className={`token-status-icon ${extraClass}`} title={stName} style={{position: 'relative'}}>
+                                            {stDuration && <span className="status-duration-badge">{stDuration}</span>}
+                                        </span>
+                                    );
+                                })}
                                 {token.statuses.length > 3 && <span className="token-status-more">+{token.statuses.length - 3}</span>}
                             </div>
                         )}
@@ -425,7 +582,62 @@ const GMDashboard = () => {
             {selectedPlayer && (
                 <div className="layer-character-sheet fade-in">
                     <div className="sheet-overlay-header"><h2>{selectedPlayer.name}'s Sheet</h2><button type="button" className="close-sheet-btn" onClick={() => setSelectedPlayer(null)}>✕ CLOSE</button></div>
-                    <div className="sheet-scroll-area"><SummaryStep character={selectedPlayer} calculateModifier={calculateModifier} /></div>
+                    <div className="sheet-scroll-area">
+                        <SummaryStep character={selectedPlayer} calculateModifier={calculateModifier} />
+                        
+                        {/* GM QUICK ACTIONS PANEL */}
+                        <div className="gm-quick-actions-panel">
+                            <h4>⚡ GM Quick Actions</h4>
+                            <div className="gm-qa-row">
+                                <label>HP:</label>
+                                <input type="number" id="gm-hp-input" placeholder="Amount" style={{width:'70px'}} />
+                                <button type="button" className="gm-qa-btn heal" onClick={() => {
+                                    const val = parseInt(document.getElementById('gm-hp-input').value) || 0;
+                                    if (val <= 0) return;
+                                    setPlayers(prev => prev.map(p => p.id === selectedPlayer.id ? { ...p, currentHp: Math.min(p.maxHp, p.currentHp + val) } : p));
+                                    setSelectedPlayer(prev => ({ ...prev, currentHp: Math.min(prev.maxHp, prev.currentHp + val) }));
+                                    addLog(`💚 GM healed ${selectedPlayer.name} for ${val} HP.`, true);
+                                    document.getElementById('gm-hp-input').value = '';
+                                }}>Heal</button>
+                                <button type="button" className="gm-qa-btn damage" onClick={() => {
+                                    const val = parseInt(document.getElementById('gm-hp-input').value) || 0;
+                                    if (val <= 0) return;
+                                    setPlayers(prev => prev.map(p => p.id === selectedPlayer.id ? { ...p, currentHp: Math.max(0, p.currentHp - val) } : p));
+                                    setSelectedPlayer(prev => ({ ...prev, currentHp: Math.max(0, prev.currentHp - val) }));
+                                    addLog(`💔 GM dealt ${val} damage to ${selectedPlayer.name}.`, true);
+                                    document.getElementById('gm-hp-input').value = '';
+                                }}>Damage</button>
+                                <button type="button" className="gm-qa-btn set" onClick={() => {
+                                    const val = parseInt(document.getElementById('gm-hp-input').value);
+                                    if (isNaN(val)) return;
+                                    setPlayers(prev => prev.map(p => p.id === selectedPlayer.id ? { ...p, currentHp: val } : p));
+                                    setSelectedPlayer(prev => ({ ...prev, currentHp: val }));
+                                    addLog(`🔧 GM set ${selectedPlayer.name}'s HP to ${val}.`, true);
+                                    document.getElementById('gm-hp-input').value = '';
+                                }}>Set</button>
+                            </div>
+                            <div className="gm-qa-row">
+                                <label>Gold:</label>
+                                <input type="number" id="gm-gold-input" placeholder="Amount" style={{width:'70px'}} />
+                                <button type="button" className="gm-qa-btn give" onClick={() => {
+                                    const val = parseInt(document.getElementById('gm-gold-input').value) || 0;
+                                    if (val <= 0) return;
+                                    setPlayers(prev => prev.map(p => p.id === selectedPlayer.id ? { ...p, currency: { ...p.currency, gp: (p.currency?.gp || 0) + val } } : p));
+                                    setSelectedPlayer(prev => ({ ...prev, currency: { ...prev.currency, gp: (prev.currency?.gp || 0) + val } }));
+                                    addLog(`💰 GM gave ${val} gp to ${selectedPlayer.name}.`, true);
+                                    document.getElementById('gm-gold-input').value = '';
+                                }}>Give</button>
+                                <button type="button" className="gm-qa-btn take" onClick={() => {
+                                    const val = parseInt(document.getElementById('gm-gold-input').value) || 0;
+                                    if (val <= 0) return;
+                                    setPlayers(prev => prev.map(p => p.id === selectedPlayer.id ? { ...p, currency: { ...p.currency, gp: Math.max(0, (p.currency?.gp || 0) - val) } } : p));
+                                    setSelectedPlayer(prev => ({ ...prev, currency: { ...prev.currency, gp: Math.max(0, (prev.currency?.gp || 0) - val) } }));
+                                    addLog(`💸 GM took ${val} gp from ${selectedPlayer.name}.`, true);
+                                    document.getElementById('gm-gold-input').value = '';
+                                }}>Take</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
             
@@ -446,7 +658,14 @@ const GMDashboard = () => {
                             <div className="npc-statuses-box">
                                 <h4>Active Statuses</h4>
                                 <div className="npc-status-list">
-                                    {selectedNPC.statuses.map(st => <span key={st} className="status-badge">{st}</span>)}
+                                    {selectedNPC.statuses.map(st => {
+                                        const stName = typeof st === 'string' ? st : st.name;
+                                        const stDuration = typeof st === 'string' ? null : st.duration;
+                                        let extraClass = '';
+                                        if (stName === 'Concentration') extraClass = 'st-conc';
+                                        if (stName === 'Invisible') extraClass = 'st-inv';
+                                        return <span key={stName} className={`status-badge ${extraClass}`}>{stName}{stDuration ? ` (${stDuration}t)` : ''}</span>;
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -491,7 +710,14 @@ const GMDashboard = () => {
                                         </div>
                                         {t.statuses && t.statuses.length > 0 && (
                                             <div className="combat-card-statuses">
-                                                {t.statuses.map(st => <span key={st} className="status-badge-small">{st}</span>)}
+                                                {t.statuses.map(st => {
+                                                    const stName = typeof st === 'string' ? st : st.name;
+                                                    const stDuration = typeof st === 'string' ? null : st.duration;
+                                                    let extraClass = '';
+                                                    if (stName === 'Concentration') extraClass = 'st-conc';
+                                                    if (stName === 'Invisible') extraClass = 'st-inv';
+                                                    return <span key={stName} className={`status-badge-small ${extraClass}`}>{stName}{stDuration ? ` (${stDuration}t)` : ''}</span>;
+                                                })}
                                             </div>
                                         )}
                                     </div>
@@ -572,6 +798,7 @@ const GMDashboard = () => {
                                         <button type="button" className="token-btn purple" onClick={() => handleAddQuickToken('purple')}></button>
                                         <button type="button" className="token-btn dark" onClick={() => handleAddQuickToken('dark')}></button>
                                         <button type="button" className="custom-token-btn" onClick={() => openTokenModal('create')}>+ CUSTOM</button>
+                                        <button type="button" className="custom-token-btn bestiary-open-btn" onClick={() => setBestiaryModalOpen(true)}>📖 BESTIARY</button>
                                         <button type="button" className="clear-tokens-btn" onClick={handleClearTokens}>CLEAR</button>
                                     </div>
                                     <h4 style={{marginTop: '15px', color: '#d4af37', fontFamily: 'Cinzel', fontSize: '13px', borderBottom: '1px solid rgba(212,175,55,0.2)', paddingBottom: '5px'}}>PLAYER TOKENS</h4>
@@ -641,25 +868,52 @@ const GMDashboard = () => {
                             <label>Speed: <input type="number" value={tokenModal.data.speed} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, speed: e.target.value}})} /></label>
                         </div>
                         
-                        <div className="grid-controls-row" style={{marginBottom: '15px'}}><label>Initiative Bonus: <input type="number" value={tokenModal.data.init} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, init: e.target.value}})} /></label></div>
+                        <div className="grid-controls-row" style={{marginBottom: '15px'}}>
+                            <label>Initiative Bonus: <input type="number" value={tokenModal.data.init} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, init: e.target.value}})} /></label>
+                            <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: 'rgba(255,255,255,0.05)', padding: '5px 10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)'}}>
+                                <input type="checkbox" checked={!!tokenModal.data.isHidden} onChange={(e) => setTokenModal({...tokenModal, data: {...tokenModal.data, isHidden: e.target.checked}})} style={{width: 'auto', margin: 0}} />
+                                <span style={{fontSize: '13px', color: '#ccc'}}>Hidden (GM Only)</span>
+                            </label>
+                        </div>
 
                         <div className="host-input-group" style={{marginBottom: '20px'}}>
-                            <label>Status Effects</label>
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
+                                <label style={{margin: 0}}>Status Effects</label>
+                                <label style={{fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                    Duration (Rounds): 
+                                    <input 
+                                        type="number" 
+                                        value={tokenModal.statusDurationInput || ''} 
+                                        placeholder="∞" 
+                                        onChange={(e) => setTokenModal({...tokenModal, statusDurationInput: e.target.value ? parseInt(e.target.value) : ''})} 
+                                        style={{width: '50px', padding: '2px 5px'}} 
+                                    />
+                                </label>
+                            </div>
                             <div className="status-grid">
-                                {['Konsantrasyon', 'Bilinçsizlik', 'Bitkinlik', 'Cezbedilme', 'Etkisiz Hal', 'Felç', 'Görünmezlik', 'Korkma', 'Körlük', 'Kısıtlanma', 'Sağırlık', 'Sersemleme', 'Taşa Dönme', 'Yakalanma', 'Yere Düşme', 'Zehirlenme'].map(st => {
-                                    const isSelected = tokenModal.data.statuses?.includes(st);
+                                {['Concentration', 'Unconscious', 'Exhaustion', 'Charmed', 'Incapacitated', 'Paralyzed', 'Invisible', 'Frightened', 'Blinded', 'Restrained', 'Deafened', 'Stunned', 'Petrified', 'Grappled', 'Prone', 'Poisoned'].map(st => {
+                                    const statusObj = (tokenModal.data.statuses || []).find(s => (typeof s === 'string' ? s === st : s.name === st));
+                                    const isSelected = !!statusObj;
+                                    let extraClass = '';
+                                    if (st === 'Concentration') extraClass = 'st-conc';
+                                    if (st === 'Invisible') extraClass = 'st-inv';
                                     return (
                                         <button 
                                             key={st} type="button" 
-                                            className={`status-toggle-btn ${isSelected ? 'active' : ''}`}
+                                            className={`status-toggle-btn ${extraClass} ${isSelected ? 'active' : ''}`}
                                             onClick={() => {
-                                                const newStatuses = isSelected 
-                                                    ? tokenModal.data.statuses.filter(s => s !== st)
-                                                    : [...(tokenModal.data.statuses || []), st];
-                                                setTokenModal({...tokenModal, data: {...tokenModal.data, statuses: newStatuses}});
+                                                if (isSelected) {
+                                                    const newStatuses = tokenModal.data.statuses.filter(s => (typeof s === 'string' ? s !== st : s.name !== st));
+                                                    setTokenModal({...tokenModal, data: {...tokenModal.data, statuses: newStatuses}});
+                                                } else {
+                                                    const duration = tokenModal.statusDurationInput ? parseInt(tokenModal.statusDurationInput) : null;
+                                                    const newStatus = duration ? { name: st, duration } : st;
+                                                    const newStatuses = [...(tokenModal.data.statuses || []), newStatus];
+                                                    setTokenModal({...tokenModal, data: {...tokenModal.data, statuses: newStatuses}});
+                                                }
                                             }}
                                         >
-                                            {st}
+                                            {st} {statusObj?.duration ? `(${statusObj.duration}t)` : ''}
                                         </button>
                                     );
                                 })}
@@ -668,8 +922,65 @@ const GMDashboard = () => {
 
                         <div className="modal-actions">
                             {tokenModal.mode === 'edit' && <button type="button" className="modal-delete-btn" style={{marginRight: 'auto'}} onClick={removeToken}>DELETE</button>}
+                            {tokenModal.mode === 'create' && <button type="button" className="modal-bestiary-btn" style={{marginRight: 'auto', background: 'transparent', border: '1px solid #d4af37', color: '#d4af37'}} onClick={saveToBestiary}>SAVE TO BESTIARY</button>}
                             <button type="button" className="modal-cancel-btn" onClick={closeTokenModal}>CANCEL</button>
                             <button type="button" className="modal-confirm-btn" onClick={saveToken}>SAVE TOKEN</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ================= BESTIARY MODAL ================= */}
+            {bestiaryModalOpen && (
+                <div className="modal-overlay fade-in" style={{zIndex: 1000}}>
+                    <div className="modal-content bestiary-modal" style={{maxWidth: '600px', width: '90%'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(212,175,55,0.3)', paddingBottom: '10px', marginBottom: '20px'}}>
+                            <h2 style={{margin: 0, color: '#d4af37'}}>📖 Monster Bestiary</h2>
+                            <button type="button" onClick={() => setBestiaryModalOpen(false)} style={{background: 'transparent', border: 'none', color: '#ff4d4d', fontSize: '20px', cursor: 'pointer'}}>✕</button>
+                        </div>
+                        
+                        <div className="bestiary-tabs">
+                            <button type="button" className={`b-tab-btn ${bestiaryTab === 'default' ? 'active' : ''}`} onClick={() => setBestiaryTab('default')}>Default Monsters</button>
+                            <button type="button" className={`b-tab-btn ${bestiaryTab === 'custom' ? 'active' : ''}`} onClick={() => setBestiaryTab('custom')}>Custom Library ({customMonsters.length})</button>
+                        </div>
+
+                        <div className="host-input-group" style={{marginTop: '15px'}}>
+                            <input 
+                                type="text" 
+                                placeholder="Search monsters by name..." 
+                                value={bestiarySearch} 
+                                onChange={(e) => setBestiarySearch(e.target.value)} 
+                                style={{width: '100%', boxSizing: 'border-box'}}
+                            />
+                        </div>
+
+                        <div className="bestiary-list">
+                            {(bestiaryTab === 'default' ? DEFAULT_BESTIARY : customMonsters)
+                                .filter(m => m.name.toLowerCase().includes(bestiarySearch.toLowerCase()))
+                                .map(m => (
+                                    <div key={m.id} className="bestiary-card">
+                                        <div className="b-card-info">
+                                            <h4>{m.name}</h4>
+                                            <div className="b-card-stats">
+                                                <span>HP: {m.hp}/{m.maxHp}</span>
+                                                <span>AC: {m.ac}</span>
+                                                <span>Init: +{m.init}</span>
+                                            </div>
+                                        </div>
+                                        <div className="b-card-actions">
+                                            {bestiaryTab === 'custom' && (
+                                                <button type="button" className="b-delete-btn" onClick={(e) => deleteCustomMonster(m.id, e)}>🗑️</button>
+                                            )}
+                                            <button type="button" className="b-spawn-btn" onClick={() => spawnFromBestiary(m)}>SPAWN</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            {bestiaryTab === 'custom' && customMonsters.length === 0 && (
+                                <p style={{textAlign: 'center', color: 'rgba(255,255,255,0.4)', marginTop: '30px'}}>
+                                    No custom monsters saved yet.<br/><br/>
+                                    Use the <b>+ CUSTOM</b> token menu to create one, and click <b>SAVE TO BESTIARY</b>.
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>

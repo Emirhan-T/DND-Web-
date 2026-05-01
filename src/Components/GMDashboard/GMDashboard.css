@@ -1488,3 +1488,269 @@ input[type="checkbox"]:checked {
     border-radius: 4px;
     padding: 0 2px;
 }
+
+/* ================= BESTIARY CSS ================= */
+.bestiary-open-btn {
+    border-color: #ff9d00;
+    color: #ff9d00;
+}
+.bestiary-open-btn:hover {
+    background: rgba(255, 157, 0, 0.2);
+}
+
+.bestiary-modal {
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
+}
+
+.bestiary-tabs {
+    display: flex;
+    gap: 10px;
+}
+
+.b-tab-btn {
+    flex: 1;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.5);
+    padding: 10px;
+    border-radius: 8px;
+    font-family: 'Cinzel', serif;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.b-tab-btn.active {
+    background: rgba(212,175,55,0.2);
+    border-color: #d4af37;
+    color: #d4af37;
+}
+
+.bestiary-list {
+    margin-top: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 5px;
+    flex: 1;
+}
+
+.bestiary-list::-webkit-scrollbar {
+    width: 6px;
+}
+.bestiary-list::-webkit-scrollbar-thumb {
+    background: rgba(212,175,55,0.5);
+    border-radius: 4px;
+}
+
+.bestiary-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-left: 3px solid #d4af37;
+    padding: 12px 15px;
+    border-radius: 8px;
+    transition: 0.2s;
+}
+
+.bestiary-card:hover {
+    background: rgba(212,175,55,0.1);
+}
+
+.b-card-info h4 {
+    margin: 0 0 5px 0;
+    color: #fff;
+    font-size: 16px;
+}
+
+.b-card-stats {
+    display: flex;
+    gap: 15px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+}
+
+.b-card-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.b-spawn-btn {
+    background: rgba(212,175,55,0.2);
+    color: #d4af37;
+    border: 1px solid #d4af37;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.b-spawn-btn:hover {
+    background: #d4af37;
+    color: #000;
+}
+
+.b-delete-btn {
+    background: rgba(255,77,77,0.1);
+    color: #ff4d4d;
+    border: 1px solid rgba(255,77,77,0.4);
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.b-delete-btn:hover {
+    background: #ff4d4d;
+    color: #fff;
+}
+
+.modal-bestiary-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    font-family: 'Cinzel', serif;
+    transition: 0.3s;
+}
+.modal-bestiary-btn:hover {
+    background: rgba(212,175,55,0.2) !important;
+}
+
+/* --- CUSTOM STATUS COLORS --- */
+/* Concentration: Light Blue / Cyan */
+.st-conc.status-toggle-btn.active {
+    background: rgba(0, 191, 255, 0.3);
+    border-color: #00bfff;
+    box-shadow: 0 0 10px rgba(0, 191, 255, 0.3);
+    color: #fff;
+}
+.st-conc.status-badge, .st-conc.status-badge-small {
+    background: rgba(0, 191, 255, 0.2);
+    border-color: rgba(0, 191, 255, 0.6);
+    color: #b3ecff;
+}
+.st-conc.token-status-icon {
+    background: #00bfff;
+}
+
+/* Invisible: White / Grey Glass */
+.st-inv.status-toggle-btn.active {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #fff;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+    color: #fff;
+}
+.st-inv.status-badge, .st-inv.status-badge-small {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: #ddd;
+}
+.st-inv.token-status-icon {
+    background: #fff;
+    opacity: 0.8;
+}
+
+/* ================= NEW GM FEATURES ================= */
+.map-token.token-hidden {
+    opacity: 0.4;
+    border-style: dashed !important;
+}
+
+.token-hidden-icon {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    font-size: 16px;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 50%;
+    padding: 2px;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    z-index: 10;
+}
+
+.status-duration-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #e74c3c;
+    color: white;
+    font-size: 9px;
+    font-weight: bold;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 2px rgba(0,0,0,0.5);
+    font-family: Arial, sans-serif;
+}
+
+/* ================= GM QUICK ACTIONS PANEL ================= */
+.gm-quick-actions-panel {
+    background: rgba(212, 175, 55, 0.08);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 10px;
+    padding: 15px 20px;
+    margin-top: 20px;
+}
+
+.gm-quick-actions-panel h4 {
+    color: #d4af37;
+    font-family: 'Cinzel', serif;
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    text-align: center;
+}
+
+.gm-qa-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.gm-qa-row label {
+    color: #aaa;
+    font-weight: bold;
+    font-size: 12px;
+    min-width: 40px;
+}
+
+.gm-qa-row input {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
+    padding: 5px 8px;
+    border-radius: 5px;
+    font-size: 13px;
+}
+
+.gm-qa-btn {
+    padding: 5px 12px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 11px;
+    transition: 0.2s;
+}
+.gm-qa-btn.heal { background: #2ecc71; color: #fff; }
+.gm-qa-btn.heal:hover { background: #27ae60; }
+.gm-qa-btn.damage { background: #e74c3c; color: #fff; }
+.gm-qa-btn.damage:hover { background: #c0392b; }
+.gm-qa-btn.set { background: #3498db; color: #fff; }
+.gm-qa-btn.set:hover { background: #2980b9; }
+.gm-qa-btn.give { background: #f39c12; color: #fff; }
+.gm-qa-btn.give:hover { background: #d68910; }
+.gm-qa-btn.take { background: #e74c3c; color: #fff; }
+.gm-qa-btn.take:hover { background: #c0392b; }
