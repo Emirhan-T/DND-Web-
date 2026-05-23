@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import StatsStep from './StatsStep';
 import DetailsStep from './DetailsStep';
 import BioStep from './BioStep'; // YENİ: 3. Sayfayı buraya import ettik
@@ -8,9 +8,10 @@ import SummaryStep from './SummaryStep';
 
 const CharacterSheet = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [currentStep, setCurrentStep] = useState(1);
 
-    const [character, setCharacter] = useState({
+    const [character, setCharacter] = useState(location.state?.character || {
         name: '', charClass: '', level: 1, species: '', playerName: '', expPoints: 0,
         stats: { Strength: 10, Dexterity: 10, Constitution: 10, Intelligence: 10, Wisdom: 10, Charisma: 10 },
         proficiencies: {}, skillOverrides: {},
@@ -144,12 +145,59 @@ const CharacterSheet = () => {
             setCharacter(prev => ({ ...prev, [field]: value }));
         }
     };
+    const handleSaveCharacter = async () => {
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        if (!token) {
+            alert("No authorization token found. Please login again.");
+            navigate('/');
+            return;
+        }
+
+        const characterData = {
+            ...character,
+            imageUrl: character.portrait || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=100&q=80'
+        };
+
+        try {
+            const isEditing = !!character._id;
+            const url = isEditing 
+                ? `http://localhost:5001/api/characters/${character._id}` 
+                : 'http://localhost:5001/api/characters';
+            const method = isEditing ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(characterData)
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                alert(isEditing ? "Character updated successfully!" : "Character created successfully!");
+                navigate('/character-manager');
+            } else {
+                alert("Error: " + data.message);
+            }
+        } catch (error) {
+            console.error("Error saving character:", error);
+            alert("Failed to save character. Connection error.");
+        }
+    };
+
     const handleImageUpload = (e) => {
         const file = e.target.files[0];
-        if (file) {
-            const imageUrl = URL.createObjectURL(file);
-            setCharacter(prev => ({ ...prev, portrait: imageUrl }));
-        }
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setCharacter(prev => ({
+                ...prev,
+                portrait: reader.result
+            }));
+        };
+        reader.readAsDataURL(file);
     };
 
     return (
@@ -234,7 +282,7 @@ const CharacterSheet = () => {
                     {currentStep === 4 && (
                         <>
                             <button type="button" className="cancel-btn" onClick={() => setCurrentStep(3)}>← BIO</button>
-                            <button type="button" className="save-btn final-save-btn" onClick={() => console.log("DATABASE SAVING...", character)}>FINISH & SAVE</button>
+                            <button type="button" className="save-btn final-save-btn" onClick={handleSaveCharacter}>FINISH & SAVE</button>
                         </>
                     )}
                     

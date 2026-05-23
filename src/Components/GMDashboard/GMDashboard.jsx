@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import SummaryStep from '../CharacterSheet/SummaryStep';
 import socket from '../../socket';
 import './GMDashboard.css';
 
 const GMDashboard = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const logContainerRef = useRef(null);
 
     // --- PANEL STATE'LERİ ---
@@ -16,18 +17,85 @@ const GMDashboard = () => {
     const [isDrawingMenuOpen, setIsDrawingMenuOpen] = useState(true);
 
     // --- OYUN & ZAR STATE'LERİ ---
-    const gameCode = "EPIC2026"; // TODO: Backend'den dinamik olarak alınacak
+    const gameCode = location.state?.gameCode || "EPIC2026";
+
+    const fetchGameDetails = async () => {
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        if (!token) return;
+        try {
+            const response = await fetch(`http://localhost:5001/api/games/code/${gameCode}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const gameData = await response.json();
+                if (gameData && gameData.players) {
+                    const mapped = gameData.players.map(p => {
+                        const char = p.characterId || {};
+                        return {
+                            id: char._id || p.characterId || p._id,
+                            name: char.name || p.characterName,
+                            charClass: char.charClass || '',
+                            level: char.level || 1,
+                            species: char.species || '',
+                            playerName: p.playerName,
+                            stats: char.stats || { Strength: 10, Dexterity: 10, Constitution: 10, Intelligence: 10, Wisdom: 10, Charisma: 10 },
+                            proficiencies: char.proficiencies || {},
+                            armorClass: char.armorClass || 10,
+                            currentHp: char.currentHp || 10,
+                            maxHp: char.maxHp || 10,
+                            speed: char.speed || 30,
+                            weapons: char.weapons || [],
+                            spellSlots: char.spellSlots || {},
+                            spells: char.spells || [],
+                            currency: char.currency || {},
+                            inventory: char.inventory || [],
+                            traits: char.traits || {},
+                            portrait: char.portrait || char.imageUrl || null
+                        };
+                    });
+                    setPlayers(mapped);
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching game details:", error);
+        }
+    };
 
     // Socket bağlantısı: GM odayı başlatır
     useEffect(() => {
         socket.connect();
         socket.emit('join_room', { gameCode, playerName: 'GM' });
+
+        fetchGameDetails();
+
+        socket.on('log_update', ({ text, isHidden }) => {
+            setLogs(prev => [...prev, { id: Date.now() + Math.random(), text, isHidden }]);
+        });
+
+        socket.on('player_joined', ({ playerName }) => {
+            setLogs(prev => [...prev, { id: Date.now() + Math.random(), text: `👤 ${playerName} odaya katıldı.`, isHidden: false }]);
+            fetchGameDetails();
+        });
+
+        socket.on('player_left', ({ playerName }) => {
+            setLogs(prev => [...prev, { id: Date.now() + Math.random(), text: `👤 ${playerName} odadan ayrıldı.`, isHidden: false }]);
+            fetchGameDetails();
+        });
+
+        socket.on('hp_changed', ({ playerId, currentHp }) => {
+            setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, currentHp } : p));
+        });
+
         return () => {
             socket.emit('leave_room', { gameCode, playerName: 'GM' });
+            socket.off('log_update');
+            socket.off('player_joined');
+            socket.off('player_left');
+            socket.off('hp_changed');
             socket.disconnect();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [gameCode]);
     const [logs, setLogs] = useState([{ id: 1, text: "Campaign Started. Waiting for players...", isHidden: false }]);
     const [diceQty, setDiceQty] = useState(1);
     const [diceType, setDiceType] = useState(20);
@@ -51,6 +119,7 @@ const GMDashboard = () => {
     // --- ÇİZİM ARAÇLARI (YENİ) ---
     const [activeTool, setActiveTool] = useState('cursor'); // cursor, marker, eraser, laser, line, circle, cone
     const [drawingColor, setDrawingColor] = useState('#ff4d4d');
+    // eslint-disable-next-line no-unused-vars
     const [canvasSize, setCanvasSize] = useState({ w: 4000, h: 4000 }); // Varsayılan büyük çizim alanı
     
     const mainCanvasRef = useRef(null); // Kalıcı çizimler (Marker, Silgi)
@@ -95,13 +164,31 @@ const GMDashboard = () => {
     const [combatState, setCombatState] = useState({ isActive: false, round: 1, currentTurnIndex: 0, secondsPassed: 0 });
 
     // --- OYUNCU (MOCK DATA) ---
-    const [players, setPlayers] = useState([
-        { id: 'p1', name: 'Elandor', charClass: 'Rogue', level: 4, species: 'Elf', playerName: 'Ahmet', stats: { Strength: 10, Dexterity: 18, Constitution: 12, Intelligence: 14, Wisdom: 10, Charisma: 14 }, proficiencies: { 'Dexterity-Stealth': true }, armorClass: 15, currentHp: 28, maxHp: 32, speed: 30, weapons: [{ id: 1, name: 'Rapier', damageDice: '1d8' }], spellSlots: { 1: { max: 0, used: 0 } }, spells: [], currency: { cp: 0, sp: 5, ep: 0, gp: 120, pp: 0 }, inventory: [], traits: { personality: 'Shadows are friends.' }, portrait: null },
-        { id: 'p2', name: 'Thorgal', charClass: 'Barbarian', level: 4, species: 'Orc', playerName: 'Can', stats: { Strength: 20, Dexterity: 14, Constitution: 16, Intelligence: 8, Wisdom: 10, Charisma: 10 }, proficiencies: { 'Strength-Athletics': true }, armorClass: 16, currentHp: 45, maxHp: 45, speed: 40, weapons: [{ id: 1, name: 'Greataxe', damageDice: '1d12' }], spellSlots: { 1: { max: 0, used: 0 } }, spells: [], currency: { cp: 0, sp: 0, ep: 0, gp: 10, pp: 0 }, inventory: [], traits: { personality: 'SMASH!' }, portrait: null }
-    ]);
+    const [players, setPlayers] = useState([]);
     const [selectedPlayer, setSelectedPlayer] = useState(null);
     const [selectedNPC, setSelectedNPC] = useState(null);
     const calculateModifier = (score) => Math.floor((score - 10) / 2);
+
+    // Real-time synchronization for tokens
+    useEffect(() => {
+        socket.emit('gm_token_update', { gameCode, tokens });
+    }, [tokens, gameCode]);
+
+    // Real-time synchronization for grid settings
+    useEffect(() => {
+        socket.emit('gm_grid_update', { gameCode, grid });
+    }, [grid, gameCode]);
+
+    // Real-time synchronization for map and pan/zoom/rotation
+    useEffect(() => {
+        const activeMapUrl = onScreenMedia[onScreenMedia.length - 1]?.url || null;
+        socket.emit('gm_map_update', { gameCode, mapUrl: activeMapUrl, onScreenMedia, board });
+    }, [onScreenMedia, board, gameCode]);
+
+    // Real-time synchronization for combat state
+    useEffect(() => {
+        socket.emit('gm_combat_update', { gameCode, combatState, tokens });
+    }, [combatState, tokens, gameCode]);
 
     useEffect(() => {
         if (isHudOpen && logContainerRef.current) logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
@@ -119,13 +206,37 @@ const GMDashboard = () => {
                 const clientY = lastMousePos.current.y;
                 
                 if (draggedToken) {
-                    setTokens(prev => prev.map(t => t.id === draggedToken.id ? { ...t, x: clientX - draggedToken.offsetX, y: clientY - draggedToken.offsetY } : t));
+                    const dx = (clientX - draggedToken.clientX) / board.scale;
+                    const dy = (clientY - draggedToken.clientY) / board.scale;
+                    let finalDx = dx;
+                    let finalDy = dy;
+                    if (board.rotation) {
+                        const rad = -board.rotation * Math.PI / 180;
+                        const cos = Math.cos(rad);
+                        const sin = Math.sin(rad);
+                        finalDx = dx * cos - dy * sin;
+                        finalDy = dx * sin + dy * cos;
+                    }
+                    setTokens(prev => prev.map(t => t.id === draggedToken.id ? { 
+                        ...t, 
+                        x: draggedToken.startX + finalDx, 
+                        y: draggedToken.startY + finalDy 
+                    } : t));
                 } else if (draggedMedia) {
                     setDraggedMedia(prev => {
                         if (!prev) return prev;
                         const dx = (clientX - prev.lastX) / board.scale;
                         const dy = (clientY - prev.lastY) / board.scale;
-                        setOnScreenMedia(prevMedia => prevMedia.map(m => m.id === prev.id ? { ...m, x: m.x + dx, y: m.y + dy } : m));
+                        let finalDx = dx;
+                        let finalDy = dy;
+                        if (board.rotation) {
+                            const rad = -board.rotation * Math.PI / 180;
+                            const cos = Math.cos(rad);
+                            const sin = Math.sin(rad);
+                            finalDx = dx * cos - dy * sin;
+                            finalDy = dx * sin + dy * cos;
+                        }
+                        setOnScreenMedia(prevMedia => prevMedia.map(m => m.id === prev.id ? { ...m, x: m.x + finalDx, y: m.y + finalDy } : m));
                         return { ...prev, lastX: clientX, lastY: clientY };
                     });
                 } else if (isDragging && !isCanvasLocked && activeTool === 'cursor') {
@@ -246,7 +357,13 @@ const GMDashboard = () => {
     // --- GELİŞMİŞ TOKEN HANDLERS ---
     const handleTokenMouseDown = (e, token) => {
         e.stopPropagation();
-        setDraggedToken({ id: token.id, offsetX: e.clientX - token.x, offsetY: e.clientY - token.y });
+        setDraggedToken({ 
+            id: token.id, 
+            startX: token.x, 
+            startY: token.y, 
+            clientX: e.clientX, 
+            clientY: e.clientY 
+        });
     };
 
     const openTokenModal = (mode, tokenData = null) => {
@@ -255,7 +372,7 @@ const GMDashboard = () => {
     const closeTokenModal = () => setTokenModal({ isOpen: false, mode: 'create', data: {} });
 
     const saveToken = () => {
-        if (tokenModal.mode === 'create') setTokens(prev => [...prev, { ...tokenModal.data, id: Date.now(), statuses: tokenModal.data.statuses || [], x: window.innerWidth / 2, y: window.innerHeight / 2 }]);
+        if (tokenModal.mode === 'create') setTokens(prev => [...prev, { ...tokenModal.data, id: Date.now(), statuses: tokenModal.data.statuses || [], x: 2000, y: 2000 }]);
         else setTokens(prev => prev.map(t => t.id === tokenModal.data.id ? { ...t, ...tokenModal.data } : t));
         closeTokenModal();
     };
@@ -296,7 +413,7 @@ const GMDashboard = () => {
     };
 
     const spawnFromBestiary = (monster) => {
-        setTokens(prev => [...prev, { ...monster, id: Date.now() + Math.random(), x: window.innerWidth / 2, y: window.innerHeight / 2 }]);
+        setTokens(prev => [...prev, { ...monster, id: Date.now() + Math.random(), x: 2000, y: 2000 }]);
         setBestiaryModalOpen(false);
     };
 
@@ -308,10 +425,10 @@ const GMDashboard = () => {
         localStorage.setItem('gm_custom_monsters', JSON.stringify(updated));
     };
 
-    const handleAddQuickToken = (color) => { setTokens(prev => [...prev, { id: Date.now(), color, size: 1, name: '', hp: '', maxHp: '', ac: '', speed: '', init: '', statuses: [], x: window.innerWidth / 2, y: window.innerHeight / 2 }]); };
+    const handleAddQuickToken = (color) => { setTokens(prev => [...prev, { id: Date.now(), color, size: 1, name: '', hp: '', maxHp: '', ac: '', speed: '', init: '', statuses: [], x: 2000, y: 2000 }]); };
     const handleClearTokens = () => { setTokens([]); };
     const handleAddPlayerToken = (p) => {
-        setTokens(prev => [...prev, { id: Date.now() + Math.random(), playerId: p.id, color: 'blue', size: 1, name: p.name, hp: p.currentHp, maxHp: p.maxHp, ac: p.armorClass, speed: p.speed, init: calculateModifier(p.stats.Dexterity), statuses: [], x: window.innerWidth / 2, y: window.innerHeight / 2 }]);
+        setTokens(prev => [...prev, { id: Date.now() + Math.random(), playerId: p.id, color: 'blue', size: 1, name: p.name, hp: p.currentHp, maxHp: p.maxHp, ac: p.armorClass, speed: p.speed, init: calculateModifier(p.stats.Dexterity), statuses: [], x: 2000, y: 2000 }]);
     };
 
     // --- COMBAT HANDLERS ---
@@ -510,6 +627,53 @@ const GMDashboard = () => {
                             }} 
                             onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseOut={handleCanvasMouseUp}
                         />
+
+                        {/* GRID */}
+                        {grid.isVisible && (
+                            <div className="grid-overlay" style={{ opacity: grid.opacity, transform: `rotate(${grid.rotation}deg)`, pointerEvents: 'none' }}>
+                                <svg width="100%" height="100%">
+                                    <defs>
+                                        <pattern id="squareGrid" width={grid.size} height={grid.size} patternUnits="userSpaceOnUse"><path d={`M ${grid.size} 0 L 0 0 0 ${grid.size}`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/></pattern>
+                                        <pattern id="hexGrid" width={grid.size * Math.sqrt(3)} height={grid.size * 1.5} patternUnits="userSpaceOnUse"><path d={`M ${grid.size * Math.sqrt(3)/2} ${grid.size * 0.5} l ${grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l 0 ${-grid.size * 0.5} l ${-grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l ${-grid.size * Math.sqrt(3)/2} ${grid.size * 0.25} l 0 ${grid.size * 0.5} z`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/></pattern>
+                                    </defs>
+                                    <rect width="200%" height="200%" x="-50%" y="-50%" fill={`url(#${grid.type === 'square' ? 'squareGrid' : 'hexGrid'})`} />
+                                </svg>
+                            </div>
+                        )}
+
+                        {/* TOKENLER */}
+                        {tokens.map((token, idx) => (
+                            <div 
+                                key={token.id} className={`map-token color-${token.color} ${draggedToken?.id === token.id ? 'dragging' : ''} ${combatState.isActive && combatState.currentTurnIndex === idx ? 'active-turn-token' : ''} ${token.isHidden ? 'token-hidden' : ''}`}
+                                style={{ 
+                                    left: token.x, top: token.y, 
+                                    width: grid.size * token.size * 0.85, height: grid.size * token.size * 0.85,
+                                    pointerEvents: activeTool !== 'cursor' ? 'none' : 'auto'
+                                }}
+                                onMouseDown={(e) => handleTokenMouseDown(e, token)} onDoubleClick={() => openTokenModal('edit', token)} title="Double-click to edit"
+                            >
+                                {token.isHidden && <span className="token-hidden-icon" title="Hidden from Players">👁️‍🗨️</span>}
+                                {token.maxHp && (<div className="token-hp-bar"><div className="token-hp-fill" style={{ width: `${Math.min(100, Math.max(0, (token.hp / token.maxHp) * 100))}%` }}></div></div>)}
+                                {token.name && <span className="token-name-tag">{token.name}</span>}
+                                {token.statuses && token.statuses.length > 0 && (
+                                    <div className="token-statuses-container">
+                                        {token.statuses.slice(0, 3).map(st => {
+                                            const stName = typeof st === 'string' ? st : st.name;
+                                            const stDuration = typeof st === 'string' ? null : st.duration;
+                                            let extraClass = '';
+                                            if (stName === 'Concentration') extraClass = 'st-conc';
+                                            if (stName === 'Invisible') extraClass = 'st-inv';
+                                            return (
+                                                <span key={stName} className={`token-status-icon ${extraClass}`} title={stName} style={{position: 'relative'}}>
+                                                    {stDuration && <span className="status-duration-badge">{stDuration}</span>}
+                                                </span>
+                                            );
+                                        })}
+                                        {token.statuses.length > 3 && <span className="token-status-more">+{token.statuses.length - 3}</span>}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
                     </div>
 
                     {/* Harita Kontrolleri ve Kilit Sistemi */}
@@ -529,53 +693,6 @@ const GMDashboard = () => {
                         </div>
                     )}
                 </div>
-
-                {/* GRID */}
-                {grid.isVisible && (
-                    <div className="grid-overlay" style={{ opacity: grid.opacity, transform: `rotate(${grid.rotation}deg)`, pointerEvents: 'none' }}>
-                        <svg width="100%" height="100%">
-                            <defs>
-                                <pattern id="squareGrid" width={grid.size} height={grid.size} patternUnits="userSpaceOnUse"><path d={`M ${grid.size} 0 L 0 0 0 ${grid.size}`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/></pattern>
-                                <pattern id="hexGrid" width={grid.size * Math.sqrt(3)} height={grid.size * 1.5} patternUnits="userSpaceOnUse"><path d={`M ${grid.size * Math.sqrt(3)/2} ${grid.size * 0.5} l ${grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l 0 ${-grid.size * 0.5} l ${-grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l ${-grid.size * Math.sqrt(3)/2} ${grid.size * 0.25} l 0 ${grid.size * 0.5} z`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/></pattern>
-                            </defs>
-                            <rect width="200%" height="200%" x="-50%" y="-50%" fill={`url(#${grid.type === 'square' ? 'squareGrid' : 'hexGrid'})`} />
-                        </svg>
-                    </div>
-                )}
-
-                {/* TOKENLER */}
-                {tokens.map((token, idx) => (
-                    <div 
-                        key={token.id} className={`map-token color-${token.color} ${draggedToken?.id === token.id ? 'dragging' : ''} ${combatState.isActive && combatState.currentTurnIndex === idx ? 'active-turn-token' : ''} ${token.isHidden ? 'token-hidden' : ''}`}
-                        style={{ 
-                            left: token.x, top: token.y, 
-                            width: grid.size * token.size * 0.85, height: grid.size * token.size * 0.85,
-                            pointerEvents: activeTool !== 'cursor' ? 'none' : 'auto'
-                        }}
-                        onMouseDown={(e) => handleTokenMouseDown(e, token)} onDoubleClick={() => openTokenModal('edit', token)} title="Double-click to edit"
-                    >
-                        {token.isHidden && <span className="token-hidden-icon" title="Hidden from Players">👁️‍🗨️</span>}
-                        {token.maxHp && (<div className="token-hp-bar"><div className="token-hp-fill" style={{ width: `${Math.min(100, Math.max(0, (token.hp / token.maxHp) * 100))}%` }}></div></div>)}
-                        {token.name && <span className="token-name-tag">{token.name}</span>}
-                        {token.statuses && token.statuses.length > 0 && (
-                            <div className="token-statuses-container">
-                                {token.statuses.slice(0, 3).map(st => {
-                                    const stName = typeof st === 'string' ? st : st.name;
-                                    const stDuration = typeof st === 'string' ? null : st.duration;
-                                    let extraClass = '';
-                                    if (stName === 'Concentration') extraClass = 'st-conc';
-                                    if (stName === 'Invisible') extraClass = 'st-inv';
-                                    return (
-                                        <span key={stName} className={`token-status-icon ${extraClass}`} title={stName} style={{position: 'relative'}}>
-                                            {stDuration && <span className="status-duration-badge">{stDuration}</span>}
-                                        </span>
-                                    );
-                                })}
-                                {token.statuses.length > 3 && <span className="token-status-more">+{token.statuses.length - 3}</span>}
-                            </div>
-                        )}
-                    </div>
-                ))}
             </div>
 
             {/* ================= LAYER 1: CHARACTER SHEET ================= */}

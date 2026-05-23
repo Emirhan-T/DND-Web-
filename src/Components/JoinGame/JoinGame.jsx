@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './JoinGame.css';
 
@@ -6,26 +6,40 @@ const JoinGame = () => {
     const navigate = useNavigate();
     const [joinCode, setJoinCode] = useState('');
     const [selectedCharId, setSelectedCharId] = useState('');
+    const [characters, setCharacters] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-    // MOCK DATA for user's characters
-    const myCharacters = [
-        { 
-            id: 'char_1', name: 'Valerius', charClass: 'Paladin', level: 5, species: 'Human', 
-            stats: { Strength: 16, Dexterity: 10, Constitution: 14, Intelligence: 8, Wisdom: 12, Charisma: 16 },
-            proficiencies: { 'Strength-Athletics': true, 'Charisma-Persuasion': true },
-            armorClass: 18, currentHp: 45, maxHp: 45, speed: 30, inspiration: false 
-        },
-        { 
-            id: 'char_2', name: 'Lyra', charClass: 'Rogue', level: 4, species: 'Elf', 
-            stats: { Strength: 8, Dexterity: 18, Constitution: 12, Intelligence: 14, Wisdom: 10, Charisma: 14 },
-            proficiencies: { 'Dexterity-Stealth': true, 'Dexterity-Acrobatics': true },
-            armorClass: 15, currentHp: 28, maxHp: 32, speed: 35, inspiration: true 
+    const fetchCharacters = async () => {
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        if (!token) {
+            navigate('/');
+            return;
         }
-    ];
+        try {
+            const response = await fetch('http://localhost:5001/api/characters', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (response.ok) {
+                setCharacters(data);
+            } else {
+                alert("Error fetching characters: " + data.message);
+            }
+        } catch (error) {
+            console.error("Connection error:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-    const handleJoin = () => {
+    useEffect(() => {
+        fetchCharacters();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const handleJoin = async () => {
         if (!joinCode.trim()) {
-            alert("Please enter a Join Code.");
+            alert("Please enter a Game Code.");
             return;
         }
         if (!selectedCharId) {
@@ -33,10 +47,46 @@ const JoinGame = () => {
             return;
         }
 
-        const selectedCharacter = myCharacters.find(c => c.id === selectedCharId);
-        
-        // Navigate to player dashboard with state
-        navigate('/player-dashboard', { state: { character: selectedCharacter, gameCode: joinCode } });
+        const selectedCharacter = characters.find(c => c._id === selectedCharId);
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+
+        try {
+            // 1. Verify the game exists first
+            const verifyRes = await fetch(`http://localhost:5001/api/games/join/${joinCode.toUpperCase()}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const verifyData = await verifyRes.json();
+
+            if (!verifyRes.ok) {
+                alert("Error joining game: " + verifyData.message);
+                return;
+            }
+
+            // 2. Join the game in the DB
+            const joinRes = await fetch(`http://localhost:5001/api/games/join/${joinCode.toUpperCase()}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    characterId: selectedCharacter._id,
+                    playerName: selectedCharacter.playerName || selectedCharacter.name,
+                    characterName: selectedCharacter.name
+                })
+            });
+            const joinData = await joinRes.json();
+
+            if (joinRes.ok) {
+                alert("Joined game successfully!");
+                navigate('/player-dashboard', { state: { character: selectedCharacter, gameCode: joinCode.toUpperCase() } });
+            } else {
+                alert("Error: " + joinData.message);
+            }
+        } catch (error) {
+            console.error("Connection error:", error);
+            alert("Connection error. Failed to join game.");
+        }
     };
 
     return (
@@ -56,23 +106,32 @@ const JoinGame = () => {
 
                 <div className="input-group">
                     <label>Select Character</label>
-                    <div className="char-list">
-                        {myCharacters.map(char => (
-                            <div 
-                                key={char.id} 
-                                className={`char-card ${selectedCharId === char.id ? 'selected' : ''}`}
-                                onClick={() => setSelectedCharId(char.id)}
-                            >
-                                <span className="char-name">{char.name}</span>
-                                <span className="char-sub">Lvl {char.level} {char.charClass}</span>
-                            </div>
-                        ))}
-                    </div>
+                    {isLoading ? (
+                        <div style={{ color: '#fff', fontSize: '14px', margin: '15px 0' }}>Loading characters...</div>
+                    ) : (
+                        <div className="char-list">
+                            {characters.map(char => (
+                                <div 
+                                    key={char._id} 
+                                    className={`char-card ${selectedCharId === char._id ? 'selected' : ''}`}
+                                    onClick={() => setSelectedCharId(char._id)}
+                                >
+                                    <span className="char-name">{char.name}</span>
+                                    <span className="char-sub">Lvl {char.level} {char.charClass}</span>
+                                </div>
+                            ))}
+                            {characters.length === 0 && (
+                                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px', margin: '15px 0' }}>
+                                    No characters found. Create one first!
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="action-buttons">
                     <button className="cancel-btn" onClick={() => navigate('/main-menu')}>CANCEL</button>
-                    <button className="join-btn" onClick={handleJoin}>JOIN GAME ➔</button>
+                    <button className="join-btn" onClick={handleJoin} disabled={characters.length === 0}>JOIN GAME ➔</button>
                 </div>
             </div>
         </div>

@@ -20,6 +20,7 @@ const PlayerDashboard = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const logRef   = useRef(null);
+    const lastAlertedTurnRef = useRef({ round: -1, turnIndex: -1 });
 
     // ── Panel state (GMDashboard ile birebir) ──
     const [isTopOpen,    setIsTopOpen]    = useState(true);
@@ -27,7 +28,7 @@ const PlayerDashboard = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isHudOpen,    setIsHudOpen]    = useState(true);
 
-    // Alt menü sekmeleri
+    // Üst menü sekmeleri (stats & skills artık üst menüde)
     const [bottomTab, setBottomTab] = useState('stats'); // 'stats' | 'skills'
 
     // ── Karakter & Oyun ─────────────────────
@@ -54,6 +55,42 @@ const PlayerDashboard = () => {
     // Diğer oyuncular (GM socket'ten gelecek; şimdilik mock)
     const [partyMembers, setPartyMembers] = useState([]);
 
+    const [onScreenMedia, setOnScreenMedia] = useState([]);
+    const [board, setBoard] = useState({ x: 0, y: 0, scale: 1, rotation: 0 });
+    const [grid, setGrid] = useState({ isVisible: false, type: 'square', size: 60, rotation: 0, opacity: 0.5 });
+
+    const [showTurnAlert, setShowTurnAlert] = useState(false);
+
+    const fetchGameDetails = async () => {
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        if (!token) return;
+        try {
+            const response = await fetch(`http://localhost:5001/api/games/code/${gameCode}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const gameData = await response.json();
+                if (gameData && gameData.players) {
+                    const others = gameData.players.filter(p => p.characterId?._id !== character?._id);
+                    const mapped = others.map(p => {
+                        const char = p.characterId || {};
+                        return {
+                            id: char._id || p.characterId || p._id,
+                            name: char.name || p.characterName,
+                            charClass: char.charClass || '',
+                            level: char.level || 1,
+                            currentHp: char.currentHp || 10,
+                            maxHp: char.maxHp || 10
+                        };
+                    });
+                    setPartyMembers(mapped);
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching game details:", error);
+        }
+    };
+
     // ── Yardımcı ─────────────────────────────
     const addLog = (text, isHidden = false) =>
         setLogs(prev => [...prev, { id: Date.now() + Math.random(), text, isHidden }]);
@@ -67,10 +104,26 @@ const PlayerDashboard = () => {
         setIsConnected(true);
         addLog(`✅ "${gameCode}" odasına bağlanıldı!`);
 
+        fetchGameDetails();
+
         socket.on('log_update',     ({ text, isHidden }) => addLog(text, isHidden));
-        socket.on('player_joined',  ({ playerName })     => addLog(`👤 ${playerName} katıldı.`));
-        socket.on('player_left',    ({ playerName })     => addLog(`👤 ${playerName} ayrıldı.`));
-        socket.on('map_changed',    ({ mapUrl })         => { setActiveMapUrl(mapUrl); addLog('🗺️ GM yeni harita açtı.'); });
+        socket.on('player_joined',  ({ playerName })     => {
+            addLog(`👤 ${playerName} katıldı.`);
+            fetchGameDetails();
+        });
+        socket.on('player_left',    ({ playerName })     => {
+            addLog(`👤 ${playerName} ayrıldı.`);
+            fetchGameDetails();
+        });
+        socket.on('map_changed',    ({ mapUrl, onScreenMedia: osm, board: b }) => {
+            if (osm) setOnScreenMedia(osm);
+            if (b) setBoard(b);
+            setActiveMapUrl(mapUrl);
+            addLog('🗺️ GM yeni harita paylaştı.');
+        });
+        socket.on('grid_updated',   ({ grid: g }) => {
+            if (g) setGrid(g);
+        });
         socket.on('tokens_updated', ({ tokens: t })      => setTokens(t));
         socket.on('combat_updated', ({ combatState: cs, tokens: t }) => {
             setCombatState(cs);
@@ -78,22 +131,51 @@ const PlayerDashboard = () => {
             addLog(cs.isActive ? '⚔️ SAVAŞ BAŞLADI!' : '🛡️ Savaş sona erdi.');
             if (cs.isActive) setIsSidebarOpen(true);
         });
-        socket.on('party_update', ({ members }) => setPartyMembers(members));
+        socket.on('hp_changed', ({ playerId, currentHp }) => {
+            if (character && character._id === playerId) {
+                setCharacter(prev => ({ ...prev, currentHp }));
+            }
+            setPartyMembers(prev => prev.map(p => p.id === playerId ? { ...p, currentHp } : p));
+        });
 
         return () => {
             socket.emit('leave_room', { gameCode, playerName: character.name });
-            ['log_update','player_joined','player_left','map_changed','tokens_updated','combat_updated','party_update']
+            ['log_update','player_joined','player_left','map_changed','tokens_updated','combat_updated','hp_changed','grid_updated']
                 .forEach(ev => socket.off(ev));
             socket.disconnect();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [gameCode]);
 
     // ── Log auto-scroll ───────────────────────
     useEffect(() => {
         if (isHudOpen && logRef.current)
             logRef.current.scrollTop = logRef.current.scrollHeight;
     }, [logs, isHudOpen]);
+
+    // Combat: bu oyuncunun sırası mı?
+    const myIdx    = tokens.findIndex(t => t.playerId === character?._id || t.playerId === character?.id);
+    const isMyTurn = combatState.isActive && myIdx !== -1 && combatState.currentTurnIndex === myIdx;
+
+    // ── Turn Alert Effect ────────────────────
+    useEffect(() => {
+        if (isMyTurn) {
+            const currentTurnKey = { round: combatState.round, turnIndex: combatState.currentTurnIndex };
+            if (
+                lastAlertedTurnRef.current.round !== currentTurnKey.round ||
+                lastAlertedTurnRef.current.turnIndex !== currentTurnKey.turnIndex
+            ) {
+                lastAlertedTurnRef.current = currentTurnKey;
+                setShowTurnAlert(true);
+                const timer = setTimeout(() => {
+                    setShowTurnAlert(false);
+                }, 3000); // 3 saniye sonra ekrandan kaybolur
+                return () => clearTimeout(timer);
+            }
+        } else {
+            setShowTurnAlert(false);
+        }
+    }, [isMyTurn, combatState.round, combatState.currentTurnIndex]);
 
     if (!character) return null;
 
@@ -128,45 +210,87 @@ const PlayerDashboard = () => {
         if (!isHudOpen) setIsHudOpen(true);
     };
 
-    // Combat: bu oyuncunun sırası mı?
-    const myIdx    = tokens.findIndex(t => t.playerId === character.id);
-    const isMyTurn = combatState.isActive && myIdx !== -1 && combatState.currentTurnIndex === myIdx;
-
     // ─────────────────────────────────────────
     return (
-        <div className="pd-wrapper">
+        <div className="player-dashboard-wrapper">
 
-            {/* ── SENİN SIRAN ──────────────────────── */}
-            {isMyTurn && <div className="pd-my-turn-alert">⚔️ SENİN SIRAN!</div>}
+            {/* ── SENİN SIRAN UYARISI ──────────────── */}
+            {showTurnAlert && <div className="my-turn-alert">⚔️ SENİN SIRAN!</div>}
 
-            {/* ═══════════════════════════════════════
-                LAYER 0 — MAP (z-index: 1)
-            ═══════════════════════════════════════ */}
-            <div className="pd-layer-map">
-                {activeMapUrl
-                    ? <img src={activeMapUrl} alt="Harita" className="pd-game-map" />
-                    : (
-                        <div className="pd-board-placeholder">
-                            <span className="pd-board-icon">🗺️</span>
-                            <h3>OYUN TAHTASI</h3>
-                            <p>GM harita paylaşmayı bekliyor...</p>
-                        </div>
-                    )
-                }
-                {tokens.map((token, idx) => (
-                    <div
-                        key={token.id}
-                        className={`pd-map-token color-${token.color} ${combatState.isActive && combatState.currentTurnIndex === idx ? 'active-turn-token' : ''}`}
-                        style={{ left: token.x, top: token.y, width: 50, height: 50 }}
+            {/* ================= LAYER 0: MAP, ÇİZİM & TOKENS ================= */}
+            <div className="layer-map">
+                <div className="canvas-view-area">
+                    <div 
+                        className="canvas-transform-group"
+                        style={{
+                            width: 4000, height: 4000,
+                            transform: `translate(${board.x}px, ${board.y}px) scale(${board.scale}) rotate(${board.rotation}deg)`,
+                            pointerEvents: 'none'
+                        }}
                     >
-                        {token.name && <span className="pd-token-name-tag">{token.name}</span>}
-                        {token.maxHp && (
-                            <div className="pd-token-hp-bar">
-                                <div className="pd-token-hp-fill" style={{ width: `${Math.min(100, (token.hp / token.maxHp) * 100)}%` }} />
+                        {/* Haritalar ve Resimler */}
+                        {onScreenMedia.map(media => (
+                            <div key={media.id} style={{ position: 'absolute', left: media.x, top: media.y }}>
+                                <img src={media.url} alt="Media" draggable="false" style={{maxWidth: '800px', maxHeight: '800px', display: 'block'}} />
+                            </div>
+                        ))}
+
+                        {/* GRID */}
+                        {grid.isVisible && (
+                            <div className="grid-overlay" style={{ opacity: grid.opacity, transform: `rotate(${grid.rotation}deg)`, pointerEvents: 'none' }}>
+                                <svg width="100%" height="100%">
+                                    <defs>
+                                        <pattern id="squareGrid" width={grid.size} height={grid.size} patternUnits="userSpaceOnUse"><path d={`M ${grid.size} 0 L 0 0 0 ${grid.size}`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/></pattern>
+                                        <pattern id="hexGrid" width={grid.size * Math.sqrt(3)} height={grid.size * 1.5} patternUnits="userSpaceOnUse"><path d={`M ${grid.size * Math.sqrt(3)/2} ${grid.size * 0.5} l ${grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l 0 ${-grid.size * 0.5} l ${-grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l ${-grid.size * Math.sqrt(3)/2} ${grid.size * 0.25} l 0 ${grid.size * 0.5} z`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/></pattern>
+                                    </defs>
+                                    <rect width="200%" height="200%" x="-50%" y="-50%" fill={`url(#${grid.type === 'square' ? 'squareGrid' : 'hexGrid'})`} />
+                                </svg>
                             </div>
                         )}
+
+                        {/* TOKENLER */}
+                        {tokens.map((token, idx) => {
+                            if (token.isHidden) return null; // GM-hidden tokens should not be rendered for players
+                            return (
+                                <div 
+                                    key={token.id} className={`map-token color-${token.color} ${combatState.isActive && combatState.currentTurnIndex === idx ? 'active-turn-token' : ''}`}
+                                    style={{ 
+                                        left: token.x, top: token.y, 
+                                        width: grid.size * token.size * 0.85, height: grid.size * token.size * 0.85,
+                                    }}
+                                >
+                                    {token.maxHp && (<div className="token-hp-bar"><div className="token-hp-fill" style={{ width: `${Math.min(100, Math.max(0, (token.hp / token.maxHp) * 100))}%` }}></div></div>)}
+                                    {token.name && <span className="token-name-tag">{token.name}</span>}
+                                    {token.statuses && token.statuses.length > 0 && (
+                                        <div className="token-statuses-container">
+                                            {token.statuses.slice(0, 3).map(st => {
+                                                const stName = typeof st === 'string' ? st : st.name;
+                                                const stDuration = typeof st === 'string' ? null : st.duration;
+                                                let extraClass = '';
+                                                if (stName === 'Concentration') extraClass = 'st-conc';
+                                                if (stName === 'Invisible') extraClass = 'st-inv';
+                                                return (
+                                                    <span key={stName} className={`token-status-icon ${extraClass}`} title={stName} style={{position: 'relative'}}>
+                                                        {stDuration && <span className="status-duration-badge">{stDuration}</span>}
+                                                    </span>
+                                                );
+                                            })}
+                                            {token.statuses.length > 3 && <span className="token-status-more">+{token.statuses.length - 3}</span>}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
-                ))}
+                </div>
+
+                {onScreenMedia.length === 0 && (
+                    <div className="board-placeholder">
+                        <span className="board-placeholder-icon">🗺️</span>
+                        <h3>OYUN TAHTASI</h3>
+                        <p>GM harita paylaşmayı bekliyor...</p>
+                    </div>
+                )}
             </div>
 
             {/* ═══════════════════════════════════════
@@ -174,30 +298,30 @@ const PlayerDashboard = () => {
                 Normal: Party Members
                 Savaş:  Combat Order  (z-index: 6)
             ═══════════════════════════════════════ */}
-            <div className={`pd-layer-sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
-                <button type="button" className="pd-sidebar-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+            <div className={`layer-sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
+                <button type="button" className="sidebar-toggle-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
                     {isSidebarOpen ? '◀' : '▶'}
                 </button>
-                <div className="pd-sidebar-content">
+                <div className="sidebar-content">
                     {combatState.isActive ? (
                         /* ── SAVAŞ SIRASI ─────────────── */
                         <>
-                            <h3 className="pd-sidebar-title" style={{ color: '#ff4d4d' }}>⚔️ SAVAŞ SIRASI</h3>
-                            <div className="pd-combat-header">
-                                <span>Tur {combatState.round}</span>
+                            <h3 className="sidebar-title" style={{ color: '#ff4d4d' }}>⚔️ COMBAT ORDER</h3>
+                            <div className="combat-stats-header">
+                                <span>Round {combatState.round}</span>
                                 <span>⏱️ {combatState.secondsPassed}s</span>
                             </div>
-                            <div className="pd-player-list pd-combat-list">
+                            <div className="player-list combat-list">
                                 {tokens.map((t, idx) => (
                                     <div
                                         key={t.id}
-                                        className={`pd-player-card pd-combat-card ${idx === combatState.currentTurnIndex ? 'active-turn' : ''}`}
+                                        className={`player-card combat-card ${idx === combatState.currentTurnIndex ? 'active-turn' : ''}`}
                                     >
-                                        <div className="pd-p-card-header">
-                                            <strong>{idx === combatState.currentTurnIndex ? '▶ ' : ''}{t.name || 'Bilinmeyen'}</strong>
-                                            <span className="pd-p-init-tag">Init: {t.initiativeRoll ?? '?'}</span>
+                                        <div className="p-card-header">
+                                            <strong>{idx === combatState.currentTurnIndex ? '▶ ' : ''}{t.name || 'Unknown'}</strong>
+                                            <span className="p-init-tag">Init: {t.initiativeRoll ?? '?'}</span>
                                         </div>
-                                        <div className="pd-p-card-sub" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <div className="p-card-sub" style={{ display: 'flex', justifyContent: 'space-between' }}>
                                             <span>HP: {t.hp ?? '?'}/{t.maxHp ?? '?'}</span>
                                             <span>AC: {t.ac ?? '?'}</span>
                                         </div>
@@ -208,28 +332,28 @@ const PlayerDashboard = () => {
                     ) : (
                         /* ── PARTY LİSTESİ ────────────── */
                         <>
-                            <h3 className="pd-sidebar-title">PARTY</h3>
-                            <div className="pd-player-list">
+                            <h3 className="sidebar-title">PARTY MEMBERS</h3>
+                            <div className="player-list">
                                 {/* Kendi kartı */}
-                                <div className="pd-player-card active">
-                                    <div className="pd-p-card-header">
+                                <div className="player-card active">
+                                    <div className="p-card-header">
                                         <strong>{character.name} (Sen)</strong>
-                                        <span className="pd-p-hp-tag">HP: {character.currentHp}/{character.maxHp}</span>
+                                        <span className="p-hp-tag">HP: {character.currentHp}/{character.maxHp}</span>
                                     </div>
-                                    <div className="pd-p-card-sub">Lv.{character.level} {character.charClass}</div>
+                                    <div className="p-card-sub">Lv.{character.level} {character.charClass}</div>
                                 </div>
                                 {/* Diğer oyuncular (socket'ten) */}
                                 {partyMembers.map(p => (
-                                    <div key={p.id} className="pd-player-card">
-                                        <div className="pd-p-card-header">
+                                    <div key={p.id} className="player-card">
+                                        <div className="p-card-header">
                                             <strong>{p.name}</strong>
-                                            <span className="pd-p-hp-tag">HP: {p.currentHp}/{p.maxHp}</span>
+                                            <span className="p-hp-tag">HP: {p.currentHp}/{p.maxHp}</span>
                                         </div>
-                                        <div className="pd-p-card-sub">Lv.{p.level} {p.charClass}</div>
+                                        <div className="p-card-sub">Lv.{p.level} {p.charClass}</div>
                                     </div>
                                 ))}
                                 {partyMembers.length === 0 && (
-                                    <p className="pd-empty-msg">Diğer oyuncular bekleniyor...</p>
+                                    <p className="empty-msg">Diğer oyuncular bekleniyor...</p>
                                 )}
                             </div>
                         </>
@@ -239,155 +363,149 @@ const PlayerDashboard = () => {
 
             {/* ═══════════════════════════════════════
                 LAYER 3 — ÜST MENÜ (z-index: 10)
+                Character Info + stats & skills (Moved from bottom)
             ═══════════════════════════════════════ */}
-            <div className={`pd-layer-top ${isTopOpen ? 'open' : 'closed'}`}>
-                <div className="pd-top-content">
-                    <div className="pd-top-left">
-                        <button type="button" className="pd-exit-btn" onClick={() => navigate('/main-menu')}>🚪 ÇIKIŞ</button>
+            <div className={`layer-top-menu ${isTopOpen ? 'open' : 'closed'}`}>
+                <div className="top-menu-content">
+                    <div className="top-left">
+                        <button type="button" className="exit-btn" onClick={() => navigate('/main-menu')}>🚪 ÇIKIŞ</button>
 
-                        <div className="pd-char-info">
-                            <span className="pd-char-name">{character.name}</span>
-                            <span className="pd-char-sub">Lv.{character.level} {character.charClass} • {character.species}</span>
+                        <div className="char-info">
+                            <span className="char-name">{character.name}</span>
+                            <span className="char-sub">Lv.{character.level} {character.charClass} • {character.species}</span>
                         </div>
 
                         {/* Combat Stats */}
-                        <div className="pd-top-combat-stats">
-                            <div className="pd-top-stat">
+                        <div className="top-combat-stats">
+                            <div className="top-stat">
                                 <label>AC</label>
                                 <input type="number" value={character.armorClass} onChange={e => handleStatChange('armorClass', parseInt(e.target.value) || 0)} />
                             </div>
-                            <div className="pd-top-stat">
+                            <div className="top-stat">
                                 <label>HIZ</label>
                                 <input type="number" value={character.speed} onChange={e => handleStatChange('speed', parseInt(e.target.value) || 0)} />
                             </div>
-                            <div className="pd-top-stat">
+                            <div className="top-stat">
                                 <label>HP</label>
-                                <div className="pd-hp-inputs">
-                                    <input type="number" className="pd-hp-current" value={character.currentHp} onChange={e => handleStatChange('currentHp', parseInt(e.target.value) || 0)} />
-                                    <span className="pd-hp-divider">/</span>
+                                <div className="hp-inputs">
+                                    <input type="number" className="hp-current" value={character.currentHp} onChange={e => handleStatChange('currentHp', parseInt(e.target.value) || 0)} />
+                                    <span className="hp-divider">/</span>
                                     <input type="number" value={character.maxHp} onChange={e => handleStatChange('maxHp', parseInt(e.target.value) || 0)} />
                                 </div>
                             </div>
-                            <div className="pd-top-stat">
+                            <div className="top-stat">
                                 <label>PB</label>
-                                <span className="pd-prof-val">+{profBonus}</span>
+                                <span className="prof-val">+{profBonus}</span>
                             </div>
                             <button
                                 type="button"
-                                className={`pd-insp-btn ${character.inspiration ? 'active' : ''}`}
+                                className={`insp-btn ${character.inspiration ? 'active' : ''}`}
                                 onClick={() => setCharacter(prev => ({ ...prev, inspiration: !prev.inspiration }))}
                             >
                                 {character.inspiration ? '🌟 İLHAM' : '⭐ İLHAM'}
                             </button>
                         </div>
+
+                        {/* COMPACT STATS & SKILLS WIDGET */}
+                        <div className="compact-character-sheets">
+                            {/* Left side: Skills list for selectedStat */}
+                            {selectedStat && (
+                                <div className="compact-skills-panel">
+                                    <div className="csp-header">
+                                        <span>{selectedStat.toUpperCase()}</span>
+                                    </div>
+                                    <div className="csp-list">
+                                        {/* Genel Zar (Raw Ability Check) */}
+                                        <button
+                                            type="button"
+                                            className="csp-roll-btn ability-check"
+                                            title={`${selectedStat} Kontrolü Zar At`}
+                                            onClick={() => rollSkill(`${selectedStat} Kontrolü`, calcMod(character.stats[selectedStat]))}
+                                        >
+                                            <span className="csp-roll-name">Genel Zar</span>
+                                            <span className="csp-roll-bonus">{fmtMod(calcMod(character.stats[selectedStat]))}</span>
+                                        </button>
+
+                                        {/* Nitelik Yetenekleri */}
+                                        {statConfig[selectedStat].map(skill => {
+                                            const bonus = getSkillBonus(selectedStat, skill);
+                                            const isProf = character.proficiencies?.[`${selectedStat}-${skill}`];
+                                            return (
+                                                <button
+                                                    key={skill}
+                                                    type="button"
+                                                    className={`csp-roll-btn ${isProf ? 'proficient' : ''}`}
+                                                    title={`${skill} Zar At`}
+                                                    onClick={() => rollSkill(skill, bonus)}
+                                                >
+                                                    <span className="csp-roll-name">
+                                                        <span className={`prof-dot ${isProf ? 'active' : ''}`} />
+                                                        {skill}
+                                                    </span>
+                                                    <span className="csp-roll-bonus">{fmtMod(bonus)}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Right side: 2 columns x 3 rows grid */}
+                            <div className="compact-stats-grid">
+                                {Object.keys(statConfig).map(stat => {
+                                    const score = character.stats[stat];
+                                    const mod = calcMod(score);
+                                    const isSelected = selectedStat === stat;
+                                    return (
+                                        <button
+                                            key={stat}
+                                            type="button"
+                                            className={`compact-stat-card ${isSelected ? 'selected' : ''}`}
+                                            onClick={() => setSelectedStat(stat)}
+                                            title={`${stat}: ${score} (Yetenekleri Göster)`}
+                                        >
+                                            <span className="csc-abbr">{stat.substring(0, 3).toUpperCase()}</span>
+                                            <span className="csc-mod">{fmtMod(mod)}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="pd-top-right">
+                    <div className="top-right">
                         {/* Bağlantı */}
-                        <div className={`pd-connection-badge ${isConnected ? 'connected' : 'disconnected'}`}>
+                        <div className={`connection-badge ${isConnected ? 'connected' : 'disconnected'}`}>
                             ● {isConnected ? 'ONLINE' : 'OFFLINE'}
                         </div>
                         {/* Savaş göstergesi */}
                         {combatState.isActive && (
-                            <div className="pd-combat-active-badge">
+                            <div className="combat-active-badge">
                                 ⚔️ TUR {combatState.round}
                             </div>
                         )}
                     </div>
                 </div>
-                <div className="pd-top-handle" onClick={() => setIsTopOpen(!isTopOpen)}>
-                    {isTopOpen ? '▲' : '▼'}
+
+                <div className="menu-handle top-handle" onClick={() => setIsTopOpen(!isTopOpen)}>
+                    {isTopOpen ? '▲ KARAKTER' : '▼ KARAKTER'}
                 </div>
             </div>
 
             {/* ═══════════════════════════════════════
-                LAYER 3 — ALT MENÜ: Stats & Skills (z-index: 10)
+                LAYER 3 — ALT MENÜ: (Boş bırakıldı, farklı içerikler eklenecek) (z-index: 10)
             ═══════════════════════════════════════ */}
-            <div className={`pd-layer-bottom ${isBottomOpen ? 'open' : 'closed'}`}>
+            <div className={`layer-bottom-menu ${isBottomOpen ? 'open' : 'closed'}`}>
                 <div
-                    className="pd-bottom-handle"
+                    className="menu-handle bottom-handle"
                     onClick={e => { e.stopPropagation(); setIsBottomOpen(!isBottomOpen); }}
                 >
-                    {isBottomOpen ? '▼' : '▲'} STATS & SKILLS
+                    {isBottomOpen ? '▼ ENVENTER & GÖREVLER' : '▲ ENVENTER & GÖREVLER'}
                 </div>
 
-                <div className="pd-bottom-content">
-                    {/* Tab Butonları */}
-                    <div className="pd-bottom-tabs">
-                        <button type="button" className={`pd-tab-btn ${bottomTab === 'stats' ? 'active' : ''}`} onClick={() => setBottomTab('stats')}>
-                            📊 STATS
-                        </button>
-                        <button type="button" className={`pd-tab-btn ${bottomTab === 'skills' ? 'active' : ''}`} onClick={() => setBottomTab('skills')}>
-                            🎯 SKILLS
-                        </button>
-                    </div>
-
-                    {/* İçerik */}
-                    <div className="pd-bottom-gallery">
-                        {bottomTab === 'stats' ? (
-                            /* ── 6 STAT GRID ── */
-                            <div className="pd-stats-bottom-grid">
-                                {Object.keys(statConfig).map(stat => {
-                                    const mod = calcMod(character.stats[stat]);
-                                    return (
-                                        <div
-                                            key={stat}
-                                            className={`pd-stat-bottom-card ${selectedStat === stat ? 'selected' : ''}`}
-                                            onClick={() => { setSelectedStat(stat); setBottomTab('skills'); }}
-                                        >
-                                            <span className="pd-sbc-abbr">{stat.substring(0, 3).toUpperCase()}</span>
-                                            <span className="pd-sbc-score">{character.stats[stat]}</span>
-                                            <span className="pd-sbc-mod">{fmtMod(mod)}</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            /* ── SKILL LİSTESİ ── */
-                            <div className="pd-skills-bottom-wrapper">
-                                {/* Stat Seçici */}
-                                <div className="pd-skill-stat-tabs">
-                                    {Object.keys(statConfig).map(stat => (
-                                        <button
-                                            key={stat}
-                                            type="button"
-                                            className={`pd-skill-stat-tab ${selectedStat === stat ? 'active' : ''}`}
-                                            onClick={() => setSelectedStat(stat)}
-                                        >
-                                            {stat.substring(0, 3).toUpperCase()}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {/* Roll Butonu */}
-                                <button
-                                    type="button"
-                                    className="pd-roll-stat-big-btn"
-                                    onClick={() => rollSkill(`${selectedStat} Kontrolü`, calcMod(character.stats[selectedStat]))}
-                                >
-                                    🎲 {selectedStat.toUpperCase()} AT ({fmtMod(calcMod(character.stats[selectedStat]))})
-                                </button>
-
-                                {/* Skill Satırları */}
-                                <div className="pd-skills-bottom-list">
-                                    {statConfig[selectedStat].map(skill => {
-                                        const bonus   = getSkillBonus(selectedStat, skill);
-                                        const hasProf = !!character.proficiencies?.[`${selectedStat}-${skill}`];
-                                        return (
-                                            <div
-                                                key={skill}
-                                                className={`pd-skill-bottom-row ${hasProf ? 'proficient' : ''}`}
-                                                onClick={() => rollSkill(skill, bonus)}
-                                            >
-                                                <div className={`pd-prof-dot ${hasProf ? 'active' : ''}`} />
-                                                <span className="pd-skill-bottom-name">{skill}</span>
-                                                <span className="pd-skill-bottom-bonus">{fmtMod(bonus)}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
+                <div className="bottom-menu-content" style={{ justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ color: 'rgba(255,255,255,0.22)', fontStyle: 'italic', letterSpacing: '1px', fontSize: '11px', fontFamily: 'Cinzel, serif' }}>
+                        🛡️ Alt panel içeriği yakında eklenecektir...
                     </div>
                 </div>
             </div>
@@ -398,22 +516,22 @@ const PlayerDashboard = () => {
             ═══════════════════════════════════════ */}
             <button
                 type="button"
-                className={`pd-hud-fab-btn ${!isHudOpen ? 'visible' : 'hidden'} ${isBottomOpen ? 'shifted' : ''}`}
+                className={`hud-fab-btn ${!isHudOpen ? 'visible' : 'hidden'} ${isBottomOpen ? 'shifted' : ''}`}
                 onClick={e => { e.stopPropagation(); setIsHudOpen(true); }}
             >
                 🎲 ZAR & LOGLAR
             </button>
 
-            <div className={`pd-layer-hud ${isHudOpen ? 'visible' : 'hidden'} ${isBottomOpen ? 'shifted' : ''}`}>
-                <div className="pd-hud-header">
+            <div className={`layer-hud ${isHudOpen ? 'visible' : 'hidden'} ${isBottomOpen ? 'shifted' : ''}`}>
+                <div className="hud-header-bar">
                     <span>ZAR & LOGLAR</span>
-                    <button type="button" className="pd-hud-close-btn" onClick={e => { e.stopPropagation(); setIsHudOpen(false); }}>✕</button>
+                    <button type="button" className="hud-close-btn" onClick={e => { e.stopPropagation(); setIsHudOpen(false); }}>✕</button>
                 </div>
 
-                <div className="pd-hud-content">
+                <div className="hud-content">
                     {/* Zar Paneli */}
-                    <div className="pd-dice-panel">
-                        <div className="pd-dice-controls">
+                    <div className="dice-panel">
+                        <div className="dice-controls">
                             <input type="number" min="1" max="99" value={diceQty} onChange={e => setDiceQty(parseInt(e.target.value) || 1)} />
                             <span>d</span>
                             <select value={diceType} onChange={e => setDiceType(parseInt(e.target.value))}>
@@ -426,22 +544,22 @@ const PlayerDashboard = () => {
                                 <option value={100}>100</option>
                             </select>
                         </div>
-                        <div className="pd-dice-actions">
-                            <label className="pd-hidden-roll-toggle">
+                        <div className="dice-actions">
+                            <label className="hidden-roll-toggle">
                                 <input type="checkbox" checked={isHiddenRoll} onChange={e => setIsHiddenRoll(e.target.checked)} />
-                                <span className="pd-toggle-label">Gizli</span>
+                                <span className="toggle-label">Gizli</span>
                             </label>
-                            <button type="button" className="pd-roll-btn" onClick={handleRollDice}>ROLL 🎲</button>
+                            <button type="button" className="roll-btn" onClick={handleRollDice}>ROLL 🎲</button>
                         </div>
                     </div>
 
                     {/* Log Paneli */}
-                    <div className="pd-log-panel">
-                        <div className="pd-log-header">COMBAT & EVENT LOG</div>
-                        <div className="pd-log-messages" ref={logRef}>
+                    <div className="log-panel">
+                        <div className="log-header">COMBAT & EVENT LOG</div>
+                        <div className="log-messages" ref={logRef}>
                             {logs.map(log => (
-                                <div key={log.id} className={`pd-log-entry ${log.isHidden ? 'pd-hidden-log' : 'pd-public-log'}`}>
-                                    {log.isHidden && <span className="pd-hidden-icon">👁️‍🗨️ </span>}
+                                <div key={log.id} className={`log-entry ${log.isHidden ? 'hidden-log' : 'public-log'}`}>
+                                    {log.isHidden && <span className="hidden-icon">👁️‍🗨️ </span>}
                                     {log.text}
                                 </div>
                             ))}
