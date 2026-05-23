@@ -23,7 +23,9 @@ app.use(cors({ origin: 'http://localhost:3000' }));
 app.use(express.json());
 
 // ===================== MONGODB BAĞLANTISI =====================
-mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(process.env.MONGO_URI, {
+    family: 4
+})
     .then(() => console.log('✅ MongoDB bağlantısı başarılı!'))
     .catch((err) => console.log('❌ MongoDB bağlantı hatası:', err));
 
@@ -74,9 +76,14 @@ io.on('connection', (socket) => {
     });
 
     // --- GM HARITA/TOKEN GÜNCELLEMESİ ---
-    socket.on('gm_map_update', ({ gameCode, mapUrl }) => {
+    socket.on('gm_map_update', ({ gameCode, mapUrl, onScreenMedia, board }) => {
         // GM'den gelen haritayı tüm oyunculara gönder
-        socket.to(gameCode).emit('map_changed', { mapUrl });
+        socket.to(gameCode).emit('map_changed', { mapUrl, onScreenMedia, board });
+    });
+
+    // --- GM GRID GÜNCELLEMESİ ---
+    socket.on('gm_grid_update', ({ gameCode, grid }) => {
+        socket.to(gameCode).emit('grid_updated', { grid });
     });
 
     // --- GM TOKEN GÜNCELLEMESİ ---

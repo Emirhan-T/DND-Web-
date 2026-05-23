@@ -28,6 +28,7 @@ router.post('/host', verifyToken, async (req, res) => {
             gameCode,
             gmId: req.user.id,
             name: req.body.name || 'New Campaign',
+            description: req.body.description || ''
         });
 
         const savedGame = await newGame.save();
@@ -92,6 +93,26 @@ router.post('/join/:gameCode', verifyToken, async (req, res) => {
     }
 });
 
+// GET /api/games/code/:gameCode - Get campaign details including fully populated player characters
+router.get('/code/:gameCode', verifyToken, async (req, res) => {
+    try {
+        const game = await Game.findOne({ gameCode: req.params.gameCode.toUpperCase() })
+            .populate({
+                path: 'players.characterId',
+                model: 'Character'
+            });
+
+        if (!game) {
+            return res.status(404).json({ message: 'Game not found.' });
+        }
+
+        res.status(200).json(game);
+    } catch (error) {
+        console.error('Error fetching game details:', error);
+        res.status(500).json({ message: 'Failed to fetch game details.' });
+    }
+});
+
 // GET /api/games/my-games - GM'in tüm oyunlarını listele
 router.get('/my-games', verifyToken, async (req, res) => {
     try {
@@ -99,6 +120,20 @@ router.get('/my-games', verifyToken, async (req, res) => {
         res.status(200).json(games);
     } catch (error) {
         res.status(500).json({ message: 'Failed to fetch games.' });
+    }
+});
+
+// DELETE /api/games/:id - GM campaign siler
+router.delete('/:id', verifyToken, async (req, res) => {
+    try {
+        const game = await Game.findOneAndDelete({ _id: req.params.id, gmId: req.user.id });
+        if (!game) {
+            return res.status(404).json({ message: "Campaign not found or access denied." });
+        }
+        res.status(200).json({ message: "Campaign deleted successfully." });
+    } catch (error) {
+        console.error("Error deleting campaign:", error);
+        res.status(500).json({ message: "Failed to delete campaign." });
     }
 });
 

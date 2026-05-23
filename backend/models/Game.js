@@ -20,6 +20,11 @@ const gameSchema = new mongoose.Schema({
         type: String,
         default: 'New Campaign'
     },
+    // Oyunun açıklaması
+    description: {
+        type: String,
+        default: ''
+    },
     // Aktif mi?
     isActive: {
         type: Boolean,
