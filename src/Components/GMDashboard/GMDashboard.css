@@ -597,6 +597,8 @@ button {
     justify-content: space-between;
     align-items: center;
     padding: 16px 30px;
+    overflow-x: hidden;
+    gap: 12px;
 }
 
 .menu-handle {
@@ -626,11 +628,20 @@ button {
     border-radius: 12px 12px 0 0;
 }
 
-.top-left,
+.top-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
 .top-right {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 14px;
+    flex-shrink: 0;
 }
 
 .exit-btn {
@@ -1754,3 +1765,21 @@ input[type="checkbox"]:checked {
 .gm-qa-btn.give:hover { background: #d68910; }
 .gm-qa-btn.take { background: #e74c3c; color: #fff; }
 .gm-qa-btn.take:hover { background: #c0392b; }
+
+/* ================= PAINT GRID TOOL ================= */
+.paint-tool-btn.active {
+    background: linear-gradient(135deg, #d4af37, #ff9d00) !important;
+    color: #000 !important;
+    box-shadow: 0 0 18px rgba(255, 157, 0, 0.6) !important;
+}
+
+.paint-tool-btn:hover {
+    background: rgba(255, 157, 0, 0.2) !important;
+    border-color: #ff9d00 !important;
+}
+
+.painted-grid-cell {
+    z-index: 1;
+    /* pointer-events: none ile token sürüklemesine müdahale etmez */
+    transition: background-color 0.15s ease;
+}

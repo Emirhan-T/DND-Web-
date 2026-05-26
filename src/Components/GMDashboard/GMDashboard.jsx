@@ -17,7 +17,13 @@ const GMDashboard = () => {
     const [isDrawingMenuOpen, setIsDrawingMenuOpen] = useState(true);
 
     // --- OYUN & ZAR STATE'LERİ ---
-    const gameCode = location.state?.gameCode || "EPIC2026";
+    const [gameCode] = useState(() => {
+        if (location.state?.gameCode) {
+            localStorage.setItem('dnd_gm_gameCode', location.state.gameCode);
+            return location.state.gameCode;
+        }
+        return localStorage.getItem('dnd_gm_gameCode') || "EPIC2026";
+    });
 
     const fetchGameDetails = async () => {
         const token = localStorage.getItem('token') || sessionStorage.getItem('token');
@@ -69,21 +75,48 @@ const GMDashboard = () => {
         fetchGameDetails();
 
         socket.on('log_update', ({ text, isHidden }) => {
-            setLogs(prev => [...prev, { id: Date.now() + Math.random(), text, isHidden }]);
+            setLogs(prev => {
+                const updated = [...prev, { id: Date.now() + Math.random(), text, isHidden }];
+                localStorage.setItem(`gm_logs_${gameCode}`, JSON.stringify(updated));
+                return updated;
+            });
         });
 
         socket.on('player_joined', ({ playerName }) => {
-            setLogs(prev => [...prev, { id: Date.now() + Math.random(), text: `👤 ${playerName} odaya katıldı.`, isHidden: false }]);
+            setLogs(prev => {
+                const updated = [...prev, { id: Date.now() + Math.random(), text: `👤 ${playerName} odaya katıldı.`, isHidden: false }];
+                localStorage.setItem(`gm_logs_${gameCode}`, JSON.stringify(updated));
+                return updated;
+            });
             fetchGameDetails();
+
+            // Sync current state to newly joined player
+            if (playerName !== 'GM') {
+                const activeMapUrl = onScreenMedia[onScreenMedia.length - 1]?.url || null;
+                socket.emit('gm_map_update', { gameCode, mapUrl: activeMapUrl, onScreenMedia, board });
+                socket.emit('gm_grid_update', { gameCode, grid });
+                socket.emit('gm_token_update', { gameCode, tokens });
+                socket.emit('gm_drawing_update', { gameCode, paintedCells, drawingSnapshot });
+                socket.emit('gm_combat_update', { gameCode, combatState, tokens });
+            }
         });
 
         socket.on('player_left', ({ playerName }) => {
-            setLogs(prev => [...prev, { id: Date.now() + Math.random(), text: `👤 ${playerName} odadan ayrıldı.`, isHidden: false }]);
+            setLogs(prev => {
+                const updated = [...prev, { id: Date.now() + Math.random(), text: `👤 ${playerName} odadan ayrıldı.`, isHidden: false }];
+                localStorage.setItem(`gm_logs_${gameCode}`, JSON.stringify(updated));
+                return updated;
+            });
             fetchGameDetails();
         });
 
         socket.on('hp_changed', ({ playerId, currentHp }) => {
             setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, currentHp } : p));
+        });
+
+        socket.on('character_updated', ({ playerId, character: updatedChar }) => {
+            setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, ...updatedChar } : p));
+            setSelectedPlayer(prev => (prev && prev.id === playerId) ? { ...prev, ...updatedChar } : prev);
         });
 
         return () => {
@@ -92,11 +125,18 @@ const GMDashboard = () => {
             socket.off('player_joined');
             socket.off('player_left');
             socket.off('hp_changed');
+            socket.off('character_updated');
             socket.disconnect();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [gameCode]);
-    const [logs, setLogs] = useState([{ id: 1, text: "Campaign Started. Waiting for players...", isHidden: false }]);
+
+
+    const [logs, setLogs] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gm_gameCode') || 'EPIC2026';
+        const saved = localStorage.getItem(`gm_logs_${activeCode}`);
+        return saved ? JSON.parse(saved) : [{ id: 1, text: "Campaign Started. Waiting for players...", isHidden: false }];
+    });
     const [diceQty, setDiceQty] = useState(1);
     const [diceType, setDiceType] = useState(20);
     const [isHiddenRoll, setIsHiddenRoll] = useState(false);
@@ -106,8 +146,16 @@ const GMDashboard = () => {
     const [maps, setMaps] = useState([]);
     const [images, setImages] = useState([]);
     
-    const [board, setBoard] = useState({ x: 0, y: 0, scale: 1, rotation: 0 });
-    const [onScreenMedia, setOnScreenMedia] = useState([]); 
+    const [board, setBoard] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gm_gameCode') || 'EPIC2026';
+        const saved = localStorage.getItem(`gm_board_${activeCode}`);
+        return saved ? JSON.parse(saved) : { x: 0, y: 0, scale: 1, rotation: 0 };
+    });
+    const [onScreenMedia, setOnScreenMedia] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gm_gameCode') || 'EPIC2026';
+        const saved = localStorage.getItem(`gm_onScreenMedia_${activeCode}`);
+        return saved ? JSON.parse(saved) : [];
+    }); 
     const [draggedMedia, setDraggedMedia] = useState(null);
     const fileInputRef = useRef(null);
 
@@ -117,11 +165,23 @@ const GMDashboard = () => {
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
     // --- ÇİZİM ARAÇLARI (YENİ) ---
-    const [activeTool, setActiveTool] = useState('cursor'); // cursor, marker, eraser, laser, line, circle, cone
+    const [activeTool, setActiveTool] = useState('cursor'); // cursor, marker, eraser, laser, line, circle, cone, paint
     const [drawingColor, setDrawingColor] = useState('#ff4d4d');
     // eslint-disable-next-line no-unused-vars
     const [canvasSize, setCanvasSize] = useState({ w: 4000, h: 4000 }); // Varsayılan büyük çizim alanı
     
+    // --- GRİD HÜCRESİ BOYAMA ---
+    const [paintedCells, setPaintedCells] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gm_gameCode') || 'EPIC2026';
+        const saved = localStorage.getItem(`gm_paintedCells_${activeCode}`);
+        return saved ? JSON.parse(saved) : [];
+    }); // [{ col, row, color }]
+    // --- GM ÇİZİM SNAPSHOT (oyunculara gönderilir) ---
+    const [drawingSnapshot, setDrawingSnapshot] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gm_gameCode') || 'EPIC2026';
+        return localStorage.getItem(`gm_drawingSnapshot_${activeCode}`) || null;
+    });
+
     const mainCanvasRef = useRef(null); // Kalıcı çizimler (Marker, Silgi)
     const overlayCanvasRef = useRef(null); // Geçici çizimler (Lazer, Koniler)
     const isDrawingRef = useRef(false);
@@ -129,6 +189,25 @@ const GMDashboard = () => {
     const clearDrawingsTimeoutRef = useRef(null);
     const animationFrameRef = useRef(null);
     const lastMousePos = useRef({ x: 0, y: 0 });
+
+    // GM Çizimini canvas yüklendiğinde geri yükle
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (mainCanvasRef.current) {
+                const savedSnapshot = localStorage.getItem(`gm_drawingSnapshot_${gameCode}`);
+                if (savedSnapshot) {
+                    const ctx = mainCanvasRef.current.getContext('2d');
+                    const img = new Image();
+                    img.onload = () => {
+                        ctx.clearRect(0, 0, canvasSize.w, canvasSize.h);
+                        ctx.drawImage(img, 0, 0, canvasSize.w, canvasSize.h);
+                    };
+                    img.src = savedSnapshot;
+                }
+            }
+        }, 100);
+        return () => clearTimeout(timer);
+    }, [gameCode, canvasSize]);
 
     useEffect(() => {
         // Tool değişirse varolan zamanlayıcıları temizle
@@ -155,13 +234,25 @@ const GMDashboard = () => {
     });
 
     // --- GRID & TOKEN STATE'LERİ ---
-    const [grid, setGrid] = useState({ isVisible: false, type: 'square', size: 60, rotation: 0, opacity: 0.5 });
-    const [tokens, setTokens] = useState([]);
+    const [grid, setGrid] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gm_gameCode') || 'EPIC2026';
+        const saved = localStorage.getItem(`gm_grid_${activeCode}`);
+        return saved ? JSON.parse(saved) : { isVisible: false, type: 'square', size: 60, rotation: 0, opacity: 0.5 };
+    });
+    const [tokens, setTokens] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gm_gameCode') || 'EPIC2026';
+        const saved = localStorage.getItem(`gm_tokens_${activeCode}`);
+        return saved ? JSON.parse(saved) : [];
+    });
     const [draggedToken, setDraggedToken] = useState(null);
     const [tokenModal, setTokenModal] = useState({ isOpen: false, mode: 'create', data: { id: null, name: '', color: 'blue', size: 1, hp: '', maxHp: '', ac: '', speed: '', init: '', statuses: [], isHidden: false }, statusDurationInput: '' });
 
     // --- SAVAŞ (COMBAT) STATE'LERİ ---
-    const [combatState, setCombatState] = useState({ isActive: false, round: 1, currentTurnIndex: 0, secondsPassed: 0 });
+    const [combatState, setCombatState] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gm_gameCode') || 'EPIC2026';
+        const saved = localStorage.getItem(`gm_combatState_${activeCode}`);
+        return saved ? JSON.parse(saved) : { isActive: false, round: 1, currentTurnIndex: 0, secondsPassed: 0 };
+    });
 
     // --- OYUNCU (MOCK DATA) ---
     const [players, setPlayers] = useState([]);
@@ -172,22 +263,38 @@ const GMDashboard = () => {
     // Real-time synchronization for tokens
     useEffect(() => {
         socket.emit('gm_token_update', { gameCode, tokens });
+        localStorage.setItem(`gm_tokens_${gameCode}`, JSON.stringify(tokens));
     }, [tokens, gameCode]);
 
     // Real-time synchronization for grid settings
     useEffect(() => {
         socket.emit('gm_grid_update', { gameCode, grid });
+        localStorage.setItem(`gm_grid_${gameCode}`, JSON.stringify(grid));
     }, [grid, gameCode]);
 
     // Real-time synchronization for map and pan/zoom/rotation
     useEffect(() => {
         const activeMapUrl = onScreenMedia[onScreenMedia.length - 1]?.url || null;
         socket.emit('gm_map_update', { gameCode, mapUrl: activeMapUrl, onScreenMedia, board });
+        localStorage.setItem(`gm_onScreenMedia_${gameCode}`, JSON.stringify(onScreenMedia));
+        localStorage.setItem(`gm_board_${gameCode}`, JSON.stringify(board));
     }, [onScreenMedia, board, gameCode]);
+
+    // Real-time synchronization for drawings & painted cells
+    useEffect(() => {
+        socket.emit('gm_drawing_update', { gameCode, paintedCells, drawingSnapshot });
+        localStorage.setItem(`gm_paintedCells_${gameCode}`, JSON.stringify(paintedCells));
+        if (drawingSnapshot) {
+            localStorage.setItem(`gm_drawingSnapshot_${gameCode}`, drawingSnapshot);
+        } else {
+            localStorage.removeItem(`gm_drawingSnapshot_${gameCode}`);
+        }
+    }, [paintedCells, drawingSnapshot, gameCode]);
 
     // Real-time synchronization for combat state
     useEffect(() => {
         socket.emit('gm_combat_update', { gameCode, combatState, tokens });
+        localStorage.setItem(`gm_combatState_${gameCode}`, JSON.stringify(combatState));
     }, [combatState, tokens, gameCode]);
 
     useEffect(() => {
@@ -346,12 +453,52 @@ const GMDashboard = () => {
                 clearDrawingsTimeoutRef.current = null;
             }, 1500);
         }
+        // Kalıcı çizimler (marker/eraser) bitince snapshot al ve oyunculara gönder
+        if (['marker', 'eraser'].includes(activeTool) && mainCanvasRef.current) {
+            // Bandwidth tasarrufu: 1000x1000'e küçültülür, oyuncu tarafında 4000x4000'e yayılır
+            const tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = 1000;
+            tmpCanvas.height = 1000;
+            tmpCanvas.getContext('2d').drawImage(mainCanvasRef.current, 0, 0, 1000, 1000);
+            setDrawingSnapshot(tmpCanvas.toDataURL('image/png'));
+        }
     };
 
     const handleClearDrawings = () => {
         if(mainCanvasRef.current) mainCanvasRef.current.getContext('2d').clearRect(0, 0, canvasSize.w, canvasSize.h);
         if(overlayCanvasRef.current) overlayCanvasRef.current.getContext('2d').clearRect(0, 0, canvasSize.w, canvasSize.h);
+        setPaintedCells([]);
+        setDrawingSnapshot(null); // snapshot temizle, oyuncularda da silinir
         addLog("Map drawings cleared.", true);
+    };
+
+    // --- GRİD HÜCRESİ BOYAMA HANDLER ---
+    // Düzeltilmiş koordinat hesaplama:
+    // - grid-overlay CSS'de inset:-50% kullanıyor, yani SVG canvas'tan 2000px solda başlıyor
+    // - Pattern'i canvas (0,0) ile hizalamak için x/y offset eklendi (pattern elementinde)
+    // - Bu yüzden tıklama koordinatı direkt col = floor(offsetX / grid.size) kullanılabilir
+    const handleGridCellPaint = (e) => {
+        if (activeTool !== 'paint' || !grid.isVisible) return;
+        // offsetX/offsetY zaten canvas-transform-group yerel koordinatında
+        // (CSS transform scale/rotate dikkate alınır)
+        const rect = e.target.getBoundingClientRect();
+        const scaleX = e.target.width / rect.width;   // canvas internal vs display
+        const scaleY = e.target.height / rect.height;
+        const rawX = (e.clientX - rect.left) * scaleX;
+        const rawY = (e.clientY - rect.top) * scaleY;
+        const col = Math.floor(rawX / grid.size);
+        const row = Math.floor(rawY / grid.size);
+        const key = `${col}_${row}`;
+        setPaintedCells(prev => {
+            const exists = prev.find(c => c.key === key);
+            if (exists) {
+                if (exists.color === drawingColor) {
+                    return prev.filter(c => c.key !== key);
+                }
+                return prev.map(c => c.key === key ? { ...c, color: drawingColor } : c);
+            }
+            return [...prev, { key, col, row, color: drawingColor }];
+        });
     };
 
     // --- GELİŞMİŞ TOKEN HANDLERS ---
@@ -584,6 +731,7 @@ const GMDashboard = () => {
                         <button type="button" className={`tool-btn ${activeTool === 'circle' ? 'active' : ''}`} onClick={() => setActiveTool('circle')} title="Measure Circle">⭕</button>
                         <button type="button" className={`tool-btn ${activeTool === 'cone' ? 'active' : ''}`} onClick={() => setActiveTool('cone')} title="Measure Cone">📐</button>
                         <button type="button" className={`tool-btn ${activeTool === 'eraser' ? 'active' : ''}`} onClick={() => setActiveTool('eraser')} title="Eraser">🧽</button>
+                        <button type="button" className={`tool-btn paint-tool-btn ${activeTool === 'paint' ? 'active' : ''}`} onClick={() => setActiveTool('paint')} title="Paint Grid Cell (requires visible grid)">🎨</button>
                         <div className="tool-divider"></div>
                         <input type="color" className="color-picker-tool" value={drawingColor} onChange={(e) => setDrawingColor(e.target.value)} title="Color" />
                         <button type="button" className="tool-btn danger" onClick={handleClearDrawings} title="Clear All Drawings">🗑️</button>
@@ -611,6 +759,25 @@ const GMDashboard = () => {
                             </div>
                         ))}
                         
+                        {/* Boyalı Grid Hücreleri */}
+                        {paintedCells.map(cell => (
+                            <div
+                                key={cell.key}
+                                className="painted-grid-cell"
+                                style={{
+                                    position: 'absolute',
+                                    left: cell.col * grid.size,
+                                    top: cell.row * grid.size,
+                                    width: grid.size,
+                                    height: grid.size,
+                                    backgroundColor: cell.color + '66',
+                                    border: `1px solid ${cell.color}99`,
+                                    pointerEvents: 'none',
+                                    boxSizing: 'border-box',
+                                }}
+                            />
+                        ))}
+
                         {/* Kalıcı Çizimler (Fırça, Silgi) */}
                         <canvas ref={mainCanvasRef} width={canvasSize.w} height={canvasSize.h} className="drawing-canvas main-canvas" />
                         
@@ -618,14 +785,25 @@ const GMDashboard = () => {
                         <canvas 
                             ref={overlayCanvasRef} width={canvasSize.w} height={canvasSize.h} className="drawing-canvas overlay-canvas"
                             onMouseDown={(e) => {
-                                if (activeTool === 'cursor' && !isCanvasLocked) {
+                                if (activeTool === 'paint') {
+                                    handleGridCellPaint(e);
+                                } else if (activeTool === 'cursor' && !isCanvasLocked) {
                                     setIsDragging(true);
                                     setDragStart({ x: e.clientX - board.x, y: e.clientY - board.y });
                                 } else {
                                     handleCanvasMouseDown(e);
                                 }
-                            }} 
-                            onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseOut={handleCanvasMouseUp}
+                            }}
+                            onMouseMove={(e) => {
+                                // Paint tool ile sürükleyerek boyama
+                                if (activeTool === 'paint' && e.buttons === 1) {
+                                    handleGridCellPaint(e);
+                                } else {
+                                    handleCanvasMouseMove(e);
+                                }
+                            }}
+                            onMouseUp={handleCanvasMouseUp} onMouseOut={handleCanvasMouseUp}
+                            style={{ cursor: activeTool === 'paint' ? (grid.isVisible ? 'cell' : 'not-allowed') : undefined }}
                         />
 
                         {/* GRID */}
@@ -633,7 +811,10 @@ const GMDashboard = () => {
                             <div className="grid-overlay" style={{ opacity: grid.opacity, transform: `rotate(${grid.rotation}deg)`, pointerEvents: 'none' }}>
                                 <svg width="100%" height="100%">
                                     <defs>
-                                        <pattern id="squareGrid" width={grid.size} height={grid.size} patternUnits="userSpaceOnUse"><path d={`M ${grid.size} 0 L 0 0 0 ${grid.size}`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/></pattern>
+                                        <pattern id="squareGrid" width={grid.size} height={grid.size} patternUnits="userSpaceOnUse"
+                                            x={2000 % grid.size} y={2000 % grid.size}>
+                                            <path d={`M ${grid.size} 0 L 0 0 0 ${grid.size}`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/>
+                                        </pattern>
                                         <pattern id="hexGrid" width={grid.size * Math.sqrt(3)} height={grid.size * 1.5} patternUnits="userSpaceOnUse"><path d={`M ${grid.size * Math.sqrt(3)/2} ${grid.size * 0.5} l ${grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l 0 ${-grid.size * 0.5} l ${-grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l ${-grid.size * Math.sqrt(3)/2} ${grid.size * 0.25} l 0 ${grid.size * 0.5} z`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/></pattern>
                                     </defs>
                                     <rect width="200%" height="200%" x="-50%" y="-50%" fill={`url(#${grid.type === 'square' ? 'squareGrid' : 'hexGrid'})`} />
@@ -711,16 +892,20 @@ const GMDashboard = () => {
                                 <button type="button" className="gm-qa-btn heal" onClick={() => {
                                     const val = parseInt(document.getElementById('gm-hp-input').value) || 0;
                                     if (val <= 0) return;
-                                    setPlayers(prev => prev.map(p => p.id === selectedPlayer.id ? { ...p, currentHp: Math.min(p.maxHp, p.currentHp + val) } : p));
-                                    setSelectedPlayer(prev => ({ ...prev, currentHp: Math.min(prev.maxHp, prev.currentHp + val) }));
+                                    const newHp = Math.min(selectedPlayer.maxHp, selectedPlayer.currentHp + val);
+                                    setPlayers(prev => prev.map(p => p.id === selectedPlayer.id ? { ...p, currentHp: newHp } : p));
+                                    setSelectedPlayer(prev => ({ ...prev, currentHp: newHp }));
+                                    socket.emit('gm_hp_update', { gameCode, playerId: selectedPlayer.id, currentHp: newHp });
                                     addLog(`💚 GM healed ${selectedPlayer.name} for ${val} HP.`, true);
                                     document.getElementById('gm-hp-input').value = '';
                                 }}>Heal</button>
                                 <button type="button" className="gm-qa-btn damage" onClick={() => {
                                     const val = parseInt(document.getElementById('gm-hp-input').value) || 0;
                                     if (val <= 0) return;
-                                    setPlayers(prev => prev.map(p => p.id === selectedPlayer.id ? { ...p, currentHp: Math.max(0, p.currentHp - val) } : p));
-                                    setSelectedPlayer(prev => ({ ...prev, currentHp: Math.max(0, prev.currentHp - val) }));
+                                    const newHp = Math.max(0, selectedPlayer.currentHp - val);
+                                    setPlayers(prev => prev.map(p => p.id === selectedPlayer.id ? { ...p, currentHp: newHp } : p));
+                                    setSelectedPlayer(prev => ({ ...prev, currentHp: newHp }));
+                                    socket.emit('gm_hp_update', { gameCode, playerId: selectedPlayer.id, currentHp: newHp });
                                     addLog(`💔 GM dealt ${val} damage to ${selectedPlayer.name}.`, true);
                                     document.getElementById('gm-hp-input').value = '';
                                 }}>Damage</button>
@@ -729,6 +914,7 @@ const GMDashboard = () => {
                                     if (isNaN(val)) return;
                                     setPlayers(prev => prev.map(p => p.id === selectedPlayer.id ? { ...p, currentHp: val } : p));
                                     setSelectedPlayer(prev => ({ ...prev, currentHp: val }));
+                                    socket.emit('gm_hp_update', { gameCode, playerId: selectedPlayer.id, currentHp: val });
                                     addLog(`🔧 GM set ${selectedPlayer.name}'s HP to ${val}.`, true);
                                     document.getElementById('gm-hp-input').value = '';
                                 }}>Set</button>

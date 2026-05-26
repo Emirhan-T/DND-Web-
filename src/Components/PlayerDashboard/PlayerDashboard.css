@@ -24,6 +24,37 @@
     z-index: 1;
 }
 
+/* Sidebar açıkken harita alanı kaymasın diye offset */
+.player-dashboard-wrapper .layer-map {
+    transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Board placeholder'ı daima görünür merkeze al */
+.player-dashboard-wrapper .board-placeholder {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+/* Üst bar taşmasını engelle */
+.player-dashboard-wrapper .top-menu-content {
+    overflow-x: hidden;
+    gap: 10px;
+    padding: 10px 16px;
+    flex-wrap: nowrap;
+}
+
+/* top-left içeriğini yatayda yayarken kırmadan esnet */
+.player-dashboard-wrapper .top-left {
+    flex: 1;
+    min-width: 0;
+    gap: 10px;
+    overflow: visible;
+    flex-wrap: nowrap;
+}
+
 /* Global input/button reset */
 .player-dashboard-wrapper input,
 .player-dashboard-wrapper select,
@@ -483,22 +514,26 @@
 .compact-character-sheets {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     background: rgba(0, 0, 0, 0.28);
     border: 1px solid rgba(212, 175, 55, 0.16);
-    padding: 6px 10px;
+    padding: 6px 12px;
     border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     margin-left: 10px;
+    /* Yatay genişleme için maksimum width artırıldı */
+    max-width: 700px;
+    flex-wrap: nowrap;
 }
 
 .compact-stats-grid {
     display: grid;
-    grid-template-columns: repeat(2, 54px);
-    grid-template-rows: repeat(3, 24px);
+    /* 3 sütun × 2 satır → daha yatay */
+    grid-template-columns: repeat(3, 60px);
+    grid-template-rows: repeat(2, 26px);
     gap: 4px;
 }
 
@@ -551,8 +586,9 @@
 .compact-skills-panel {
     display: flex;
     flex-direction: column;
-    width: 130px;
-    height: 80px;
+    /* Genişletildi: daha fazla skill göster */
+    width: 200px;
+    height: 90px;
     background: rgba(0, 0, 0, 0.4);
     border: 1px solid rgba(212, 175, 55, 0.25);
     border-radius: 8px;
@@ -580,11 +616,14 @@
 
 .csp-list {
     display: flex;
-    flex-direction: column;
+    /* Yatay: skills iki sütun olarak dizilsin */
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: 3px;
     overflow-y: auto;
     flex: 1;
     padding-right: 2px;
+    align-content: flex-start;
 }
 
 .csp-list::-webkit-scrollbar {
@@ -602,7 +641,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 3px 5px;
+    padding: 3px 6px;
     background: rgba(255, 255, 255, 0.02) !important;
     border: 1px solid rgba(255, 255, 255, 0.04) !important;
     border-radius: 4px;
@@ -610,6 +649,9 @@
     transition: all 0.15s ease;
     text-align: left;
     box-sizing: border-box;
+    /* Yatay düzende yarım genişlik */
+    width: calc(50% - 2px);
+    flex-shrink: 0;
 }
 
 .csp-roll-btn:hover {
@@ -647,7 +689,9 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 90px;
+    /* Genişletilmiş panel için max-width artırıldı */
+    max-width: 120px;
+    flex: 1;
 }
 
 .csp-roll-btn.proficient .csp-roll-name {

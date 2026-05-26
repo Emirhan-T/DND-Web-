@@ -32,8 +32,23 @@ const PlayerDashboard = () => {
     const [bottomTab, setBottomTab] = useState('stats'); // 'stats' | 'skills'
 
     // ── Karakter & Oyun ─────────────────────
-    const [character,    setCharacter]    = useState(location.state?.character || null);
-    const [gameCode]                      = useState(location.state?.gameCode  || 'UNKNOWN');
+    const [character,    setCharacter]    = useState(() => {
+        if (location.state?.character) {
+            localStorage.setItem('dnd_character', JSON.stringify(location.state.character));
+            return location.state.character;
+        }
+        const saved = localStorage.getItem('dnd_character');
+        return saved ? JSON.parse(saved) : null;
+    });
+    
+    const [gameCode] = useState(() => {
+        if (location.state?.gameCode) {
+            localStorage.setItem('dnd_gameCode', location.state.gameCode);
+            return location.state.gameCode;
+        }
+        return localStorage.getItem('dnd_gameCode') || 'UNKNOWN';
+    });
+
     const [selectedStat, setSelectedStat] = useState('Dexterity');
     const [isConnected,  setIsConnected]  = useState(false);
 
@@ -43,21 +58,58 @@ const PlayerDashboard = () => {
     const [isHiddenRoll, setIsHiddenRoll] = useState(false);
 
     // ── Loglar ───────────────────────────────
-    const [logs, setLogs] = useState([
-        { id: 1, text: 'Oturuma katıldınız. GM bekleniyor...', isHidden: false }
-    ]);
+    const [logs, setLogs] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gameCode') || 'UNKNOWN';
+        const saved = localStorage.getItem(`player_logs_${activeCode}`);
+        return saved ? JSON.parse(saved) : [
+            { id: 1, text: 'Oturuma katıldınız. GM bekleniyor...', isHidden: false }
+        ];
+    });
 
     // ── GM'den gelen veriler ─────────────────
-    const [activeMapUrl, setActiveMapUrl] = useState(null);
-    const [tokens,       setTokens]       = useState([]);
-    const [combatState,  setCombatState]  = useState({ isActive: false, round: 1, currentTurnIndex: 0, secondsPassed: 0 });
+    const [activeMapUrl, setActiveMapUrl] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gameCode') || 'UNKNOWN';
+        return localStorage.getItem(`player_activeMapUrl_${activeCode}`) || null;
+    });
+    const [tokens,       setTokens]       = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gameCode') || 'UNKNOWN';
+        const saved = localStorage.getItem(`player_tokens_${activeCode}`);
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [combatState,  setCombatState]  = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gameCode') || 'UNKNOWN';
+        const saved = localStorage.getItem(`player_combatState_${activeCode}`);
+        return saved ? JSON.parse(saved) : { isActive: false, round: 1, currentTurnIndex: 0, secondsPassed: 0 };
+    });
     
     // Diğer oyuncular (GM socket'ten gelecek; şimdilik mock)
     const [partyMembers, setPartyMembers] = useState([]);
 
-    const [onScreenMedia, setOnScreenMedia] = useState([]);
-    const [board, setBoard] = useState({ x: 0, y: 0, scale: 1, rotation: 0 });
-    const [grid, setGrid] = useState({ isVisible: false, type: 'square', size: 60, rotation: 0, opacity: 0.5 });
+    const [onScreenMedia, setOnScreenMedia] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gameCode') || 'UNKNOWN';
+        const saved = localStorage.getItem(`player_onScreenMedia_${activeCode}`);
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [board, setBoard] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gameCode') || 'UNKNOWN';
+        const saved = localStorage.getItem(`player_board_${activeCode}`);
+        return saved ? JSON.parse(saved) : { x: 0, y: 0, scale: 1, rotation: 0 };
+    });
+    const [grid, setGrid] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gameCode') || 'UNKNOWN';
+        const saved = localStorage.getItem(`player_grid_${activeCode}`);
+        return saved ? JSON.parse(saved) : { isVisible: false, type: 'square', size: 60, rotation: 0, opacity: 0.5 };
+    });
+    // GM çizimleri (marker/eraser snapshot + boyalı hücreler)
+    const [paintedCells, setPaintedCells]       = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gameCode') || 'UNKNOWN';
+        const saved = localStorage.getItem(`player_paintedCells_${activeCode}`);
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [drawingSnapshot, setDrawingSnapshot] = useState(() => {
+        const activeCode = location.state?.gameCode || localStorage.getItem('dnd_gameCode') || 'UNKNOWN';
+        return localStorage.getItem(`player_drawingSnapshot_${activeCode}`) || null;
+    });
 
     const [showTurnAlert, setShowTurnAlert] = useState(false);
 
@@ -92,8 +144,39 @@ const PlayerDashboard = () => {
     };
 
     // ── Yardımcı ─────────────────────────────
-    const addLog = (text, isHidden = false) =>
-        setLogs(prev => [...prev, { id: Date.now() + Math.random(), text, isHidden }]);
+    const addLog = (text, isHidden = false) => {
+        setLogs(prev => {
+            const updated = [...prev, { id: Date.now() + Math.random(), text, isHidden }];
+            localStorage.setItem(`player_logs_${gameCode}`, JSON.stringify(updated));
+            return updated;
+        });
+    };
+
+    // Mount olunca veritabanından en güncel karakter verisini çekip eşitle
+    useEffect(() => {
+        const syncLatestCharacter = async () => {
+            if (!character?._id) return;
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            if (!token) return;
+            try {
+                const response = await fetch('http://localhost:5001/api/characters', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    const current = data.find(c => c._id === character._id);
+                    if (current) {
+                        setCharacter(current);
+                        localStorage.setItem('dnd_character', JSON.stringify(current));
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to sync latest character from DB:", err);
+            }
+        };
+        syncLatestCharacter();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // ── Guard & Socket Setup ─────────────────
     useEffect(() => {
@@ -116,31 +199,106 @@ const PlayerDashboard = () => {
             fetchGameDetails();
         });
         socket.on('map_changed',    ({ mapUrl, onScreenMedia: osm, board: b }) => {
-            if (osm) setOnScreenMedia(osm);
-            if (b) setBoard(b);
+            if (osm) {
+                setOnScreenMedia(osm);
+                localStorage.setItem(`player_onScreenMedia_${gameCode}`, JSON.stringify(osm));
+            }
+            if (b) {
+                setBoard(b);
+                localStorage.setItem(`player_board_${gameCode}`, JSON.stringify(b));
+            }
             setActiveMapUrl(mapUrl);
+            if (mapUrl) {
+                localStorage.setItem(`player_activeMapUrl_${gameCode}`, mapUrl);
+            } else {
+                localStorage.removeItem(`player_activeMapUrl_${gameCode}`);
+            }
             addLog('🗺️ GM yeni harita paylaştı.');
         });
         socket.on('grid_updated',   ({ grid: g }) => {
-            if (g) setGrid(g);
+            if (g) {
+                setGrid(g);
+                localStorage.setItem(`player_grid_${gameCode}`, JSON.stringify(g));
+            }
         });
-        socket.on('tokens_updated', ({ tokens: t })      => setTokens(t));
+        socket.on('tokens_updated', ({ tokens: t })      => {
+            setTokens(t);
+            localStorage.setItem(`player_tokens_${gameCode}`, JSON.stringify(t));
+        });
         socket.on('combat_updated', ({ combatState: cs, tokens: t }) => {
             setCombatState(cs);
             setTokens(t);
+            localStorage.setItem(`player_combatState_${gameCode}`, JSON.stringify(cs));
+            localStorage.setItem(`player_tokens_${gameCode}`, JSON.stringify(t));
             addLog(cs.isActive ? '⚔️ SAVAŞ BAŞLADI!' : '🛡️ Savaş sona erdi.');
             if (cs.isActive) setIsSidebarOpen(true);
         });
         socket.on('hp_changed', ({ playerId, currentHp }) => {
-            if (character && character._id === playerId) {
-                setCharacter(prev => ({ ...prev, currentHp }));
+            // Karakter kendi ID'sine sahipse direkt güncelle ve veritabanına kaydet!
+            if (character && (character._id === playerId || character.id === playerId)) {
+                setCharacter(prev => {
+                    const updated = { ...prev, currentHp: typeof currentHp === 'number' ? currentHp : prev.currentHp };
+                    localStorage.setItem('dnd_character', JSON.stringify(updated));
+
+                    // GM'in can değişikliğini DB'ye otomatik kaydet
+                    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+                    if (token && prev._id) {
+                        fetch(`http://localhost:5001/api/characters/${prev._id}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({ currentHp })
+                        }).catch(err => console.error("Error saving character HP change from GM to DB:", err));
+                    }
+                    return updated;
+                });
             }
-            setPartyMembers(prev => prev.map(p => p.id === playerId ? { ...p, currentHp } : p));
+            // Party member HP'si de güncelle
+            setPartyMembers(prev => prev.map(p =>
+                (p.id === playerId || p._id === playerId) ? { ...p, currentHp } : p
+            ));
+        });
+        // GM çizimleri & boyamaları
+        socket.on('drawing_updated', ({ paintedCells: pc, drawingSnapshot: ds }) => {
+            if (pc !== undefined) {
+                setPaintedCells(pc);
+                localStorage.setItem(`player_paintedCells_${gameCode}`, JSON.stringify(pc));
+            }
+            if (ds !== undefined) {
+                setDrawingSnapshot(ds);
+                if (ds) {
+                    localStorage.setItem(`player_drawingSnapshot_${gameCode}`, ds);
+                } else {
+                    localStorage.removeItem(`player_drawingSnapshot_${gameCode}`);
+                }
+            }
+        });
+        // GM veya diğer oyunculardan gelen anlık karakter güncellemeleri
+        socket.on('character_updated', ({ playerId, character: updatedChar }) => {
+            if (character && (character._id === playerId || character.id === playerId)) {
+                setCharacter(prev => {
+                    const updated = { ...prev, ...updatedChar };
+                    localStorage.setItem('dnd_character', JSON.stringify(updated));
+                    return updated;
+                });
+            }
+            setPartyMembers(prev => prev.map(p =>
+                (p.id === playerId || p._id === playerId) ? { 
+                    ...p, 
+                    name: updatedChar.name,
+                    charClass: updatedChar.charClass,
+                    level: updatedChar.level,
+                    currentHp: updatedChar.currentHp,
+                    maxHp: updatedChar.maxHp 
+                } : p
+            ));
         });
 
         return () => {
             socket.emit('leave_room', { gameCode, playerName: character.name });
-            ['log_update','player_joined','player_left','map_changed','tokens_updated','combat_updated','hp_changed','grid_updated']
+            ['log_update','player_joined','player_left','map_changed','tokens_updated','combat_updated','hp_changed','grid_updated','drawing_updated','character_updated']
                 .forEach(ev => socket.off(ev));
             socket.disconnect();
         };
@@ -189,8 +347,36 @@ const PlayerDashboard = () => {
     };
 
     // ── Handlers ────────────────────────────
-    const handleStatChange = (field, val) =>
-        setCharacter(prev => ({ ...prev, [field]: val }));
+    const handleStatChange = (field, val) => {
+        setCharacter(prev => {
+            if (!prev) return prev;
+            const updated = { ...prev, [field]: val };
+            localStorage.setItem('dnd_character', JSON.stringify(updated));
+            
+            // GM'e ve odaya anlık stat güncellemesini bildir
+            socket.emit('player_stat_update', {
+                gameCode,
+                playerId: prev._id || prev.id,
+                character: updated
+            });
+
+            // Veritabanına kaydet
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            const characterId = prev._id || prev.id;
+            if (token && characterId) {
+                fetch(`http://localhost:5001/api/characters/${characterId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ [field]: val })
+                }).catch(err => console.error("Error saving character stat to DB:", err));
+            }
+
+            return updated;
+        });
+    };
 
     const handleRollDice = () => {
         let total = 0, rolls = [];
@@ -240,12 +426,49 @@ const PlayerDashboard = () => {
                             <div className="grid-overlay" style={{ opacity: grid.opacity, transform: `rotate(${grid.rotation}deg)`, pointerEvents: 'none' }}>
                                 <svg width="100%" height="100%">
                                     <defs>
-                                        <pattern id="squareGrid" width={grid.size} height={grid.size} patternUnits="userSpaceOnUse"><path d={`M ${grid.size} 0 L 0 0 0 ${grid.size}`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/></pattern>
+                                        <pattern id="squareGrid" width={grid.size} height={grid.size} patternUnits="userSpaceOnUse"
+                                            x={2000 % grid.size} y={2000 % grid.size}>
+                                            <path d={`M ${grid.size} 0 L 0 0 0 ${grid.size}`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/>
+                                        </pattern>
                                         <pattern id="hexGrid" width={grid.size * Math.sqrt(3)} height={grid.size * 1.5} patternUnits="userSpaceOnUse"><path d={`M ${grid.size * Math.sqrt(3)/2} ${grid.size * 0.5} l ${grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l 0 ${-grid.size * 0.5} l ${-grid.size * Math.sqrt(3)/2} ${-grid.size * 0.25} l ${-grid.size * Math.sqrt(3)/2} ${grid.size * 0.25} l 0 ${grid.size * 0.5} z`} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/></pattern>
                                     </defs>
                                     <rect width="200%" height="200%" x="-50%" y="-50%" fill={`url(#${grid.type === 'square' ? 'squareGrid' : 'hexGrid'})`} />
                                 </svg>
                             </div>
+                        )}
+
+                        {/* GM BOYALI GRİD HÜCRELERİ */}
+                        {paintedCells.map(cell => (
+                            <div
+                                key={cell.key}
+                                style={{
+                                    position: 'absolute',
+                                    left: cell.col * grid.size,
+                                    top: cell.row * grid.size,
+                                    width: grid.size,
+                                    height: grid.size,
+                                    backgroundColor: cell.color + '66',
+                                    border: `1px solid ${cell.color}99`,
+                                    pointerEvents: 'none',
+                                    boxSizing: 'border-box',
+                                }}
+                            />
+                        ))}
+
+                        {/* GM MARKER/ERASER ÇİZİMLERİ (snapshot olarak göster) */}
+                        {drawingSnapshot && (
+                            <img
+                                src={drawingSnapshot}
+                                alt="gm-drawing"
+                                style={{
+                                    position: 'absolute',
+                                    top: 0, left: 0,
+                                    width: 4000, height: 4000,
+                                    pointerEvents: 'none',
+                                    imageRendering: 'pixelated',
+                                }}
+                                draggable={false}
+                            />
                         )}
 
                         {/* TOKENLER */}

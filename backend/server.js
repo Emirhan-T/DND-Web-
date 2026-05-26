@@ -13,7 +13,8 @@ const io = new Server(server, {
     cors: {
         origin: 'http://localhost:3000',
         methods: ['GET', 'POST']
-    }
+    },
+    maxHttpBufferSize: 5e6  // 5 MB — canvas snapshot için
 });
 
 const PORT = 5001;
@@ -99,6 +100,18 @@ io.on('connection', (socket) => {
     // --- GM OYUNCU CAN GÜNCELLEMESİ ---
     socket.on('gm_hp_update', ({ gameCode, playerId, currentHp }) => {
         io.to(gameCode).emit('hp_changed', { playerId, currentHp });
+    });
+
+    // --- OYUNCU STAT GÜNCELLEMESİ ---
+    socket.on('player_stat_update', ({ gameCode, playerId, character }) => {
+        socket.to(gameCode).emit('character_updated', { playerId, character });
+    });
+
+    // --- GM ÇİZİM & BOYAMA GÜNCELLEMESİ ---
+    // paintedCells: boyanmış grid hücreleri  
+    // drawingSnapshot: marker/eraser canvas'ının base64 görüntüsü
+    socket.on('gm_drawing_update', ({ gameCode, paintedCells, drawingSnapshot }) => {
+        socket.to(gameCode).emit('drawing_updated', { paintedCells, drawingSnapshot });
     });
 
     // --- GENEL LOG MESAJI ---
