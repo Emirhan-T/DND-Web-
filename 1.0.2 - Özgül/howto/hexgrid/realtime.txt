@@ -1,0 +1,15 @@
+If Socket.IO already exists, use the existing setup carefully.
+
+Do not break existing socket events.
+
+Add only minimum necessary events, such as:
+
+- map:update
+- map:active
+- token:move
+- object:move
+- object:pickup
+
+If Socket.IO is not already used in this local version, do not create a large new multiplayer architecture without asking me.
+
+Implement local state first and explain what would be needed later.

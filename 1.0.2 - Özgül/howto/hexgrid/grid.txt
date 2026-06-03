@@ -1,0 +1,30 @@
+Add a hex-grid map display.
+
+Use axial coordinates:
+
+q
+r
+
+Each hex should support:
+
+{
+  q,
+  r,
+  terrain,
+  walkable,
+  movementCost,
+  visibleToPlayers
+}
+
+Terrain types should include:
+
+- grass
+- stone
+- water
+- mud
+- road
+- wall
+- lava
+- bridge
+
+The grid should be visible in the Media/Grid area.

@@ -1,0 +1,17 @@
+If you are unsure about anything, ask me first.
+
+Do not guess.
+Do not fill blanks by assumption.
+Do not silently choose between multiple architecture options.
+
+Ask me before proceeding if you are unsure about:
+- Where the map should be inserted
+- Whether the current user is GM or player
+- Whether a backend route is needed
+- Whether Socket.IO should be used
+- Whether map data should be saved
+- Whether to add a new component folder
+- Whether to change existing state/data structure
+- Whether to add a new dependency
+- Whether to modify styling/theme
+

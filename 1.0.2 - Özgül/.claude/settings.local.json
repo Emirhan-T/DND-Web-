@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($env:CI=\"\"; npm run build 2>&1 | Select-Object -Last 60)"
+    ]
+  }
+}

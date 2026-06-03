@@ -1,0 +1,37 @@
+Add three object categories.
+
+Movable objects:
+- barrel
+- crate
+- cart
+- chest
+
+Immovable objects:
+- tree
+- wall
+- rock
+- door
+
+Pickable objects:
+- potion
+- key
+- scroll
+- weapon
+- coin pouch
+
+Each object should support:
+
+{
+  id,
+  type,
+  name,
+  q,
+  r,
+  movable,
+  pickable,
+  blocksMovement,
+  visibleToPlayers,
+  contains
+}
+
+The contains field is optional and mainly for objects like chests.

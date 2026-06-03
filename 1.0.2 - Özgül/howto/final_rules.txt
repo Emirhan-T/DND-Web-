@@ -1,0 +1,13 @@
+Ask me if you are stuck.
+
+Ask me if the codebase is unclear.
+
+Ask me before assuming missing information.
+
+Ask me before changing unrelated systems.
+
+Do not invent architecture silently.
+
+Do not make broad refactors.
+
+Keep changes targeted, safe, and reversible.
