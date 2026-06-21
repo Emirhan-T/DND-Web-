@@ -1,0 +1,5 @@
+Currently there is not an API ready to use for this map generation.
+
+But you need to code this in a way where an API can be integrated in the long run.
+
+So prepare the code structure so future AI-generated map JSON can be inserted later.

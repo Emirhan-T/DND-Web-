@@ -1,0 +1,15 @@
+The GM should be able to:
+
+- Select terrain type
+- Paint/change terrain on hexes
+- Mark hexes as walkable
+- Mark hexes as blocked
+- Place objects
+- Move movable objects
+- Delete objects
+- Mark objects visible to players
+- Mark objects hidden from players
+
+If the project already supports saving active game state, use it carefully.
+
+If saving requires architecture changes, ask me first.

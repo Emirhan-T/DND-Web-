@@ -1,0 +1,27 @@
+Do not change unrelated parts of the project.
+
+Do not modify:
+- Login
+- Register
+- Character creation
+- Campaign creation
+- Campaign join flow
+- Dice system
+- Chat system
+- Existing theme
+- Existing routing
+- Existing authentication
+- Existing backend logic **unless required for the map**
+
+Keep:
+- Current theme
+- Current colors
+- Current spacing
+- Current fantasy/D&D style
+- Current component structure as much as possible
+
+Avoid:
+- Large rewrites
+- Unnecessary dependencies
+- New pages
+- Breaking existing Socket.IO events

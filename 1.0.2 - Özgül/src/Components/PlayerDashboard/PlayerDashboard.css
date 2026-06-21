@@ -1,0 +1,726 @@
+/* =========================================
+   PlayerDashboard.css — Glass Fantasy
+   Google Fonts: Cinzel + Exo 2
+   Imports and inherits GMDashboard.css styles
+   ========================================= */
+@import "../GMDashboard/GMDashboard.css";
+
+/* KÖK KAPSAYICI - SİYAH ARKA PLAN */
+.player-dashboard-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+
+    background-color: #595959 !important;
+    background-image: none !important;
+
+    color: #fff;
+    font-family: 'Exo 2', sans-serif;
+    z-index: 1;
+}
+
+/* Sidebar açıkken harita alanı kaymasın diye offset */
+.player-dashboard-wrapper .layer-map {
+    transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Board placeholder'ı daima görünür merkeze al */
+.player-dashboard-wrapper .board-placeholder {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+/* Üst bar taşmasını engelle */
+.player-dashboard-wrapper .top-menu-content {
+    overflow-x: hidden;
+    gap: 10px;
+    padding: 10px 16px;
+    flex-wrap: nowrap;
+}
+
+/* top-left içeriğini yatayda yayarken kırmadan esnet */
+.player-dashboard-wrapper .top-left {
+    flex: 1;
+    min-width: 0;
+    gap: 10px;
+    overflow: visible;
+    flex-wrap: nowrap;
+}
+
+/* Global input/button reset */
+.player-dashboard-wrapper input,
+.player-dashboard-wrapper select,
+.player-dashboard-wrapper button {
+    color: #fff;
+    background: transparent;
+    outline: none;
+    border: none;
+    font-family: 'Exo 2', sans-serif;
+}
+
+/* --- BOARD PLACEHOLDER --- */
+.board-placeholder {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.35);
+    pointer-events: none;
+    user-select: none;
+}
+.board-placeholder-icon {
+    font-size: 64px;
+    display: block;
+    margin-bottom: 16px;
+    color: rgba(212, 175, 55, 0.5);
+}
+.board-placeholder h3 {
+    font-family: 'Cinzel', serif;
+    font-size: 22px;
+    letter-spacing: 4px;
+    color: rgba(212, 175, 55, 0.6);
+    margin: 0 0 10px 0;
+}
+.board-placeholder p {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.35);
+    margin: 0;
+}
+
+/* --- TOP BAR COMBAT STATS (PLAYER SPECIFIC) --- */
+.top-combat-stats {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 6px 16px;
+    backdrop-filter: blur(10px);
+}
+.top-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.top-stat label {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    color: rgba(212, 175, 55, 0.7);
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+.top-stat input {
+    background: transparent;
+    border: none !important;
+    border-bottom: 1.5px solid rgba(255, 255, 255, 0.15) !important;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    width: 44px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+.top-stat input:focus {
+    border-bottom-color: #d4af37 !important;
+    box-shadow: none !important;
+}
+.hp-inputs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.hp-current {
+    color: #4caf50 !important;
+}
+.hp-divider {
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 14px;
+}
+.prof-val {
+    font-size: 16px;
+    font-weight: 700;
+    color: #7ec8ff;
+    border-bottom: 1.5px solid transparent;
+    padding-bottom: 2px;
+}
+.insp-btn {
+    background: rgba(0, 0, 0, 0.3) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: rgba(255, 255, 255, 0.45) !important;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-family: 'Cinzel', serif;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    letter-spacing: 1px;
+}
+.insp-btn:hover {
+    border-color: rgba(212, 175, 55, 0.4) !important;
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+.insp-btn.active {
+    background: rgba(212, 175, 55, 0.12) !important;
+    border-color: #d4af37 !important;
+    color: #d4af37 !important;
+    box-shadow: 0 0 12px rgba(212, 175, 55, 0.25);
+}
+
+.char-info {
+    display: flex;
+    flex-direction: column;
+}
+.char-name {
+    font-family: 'Cinzel', serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: #d4af37;
+    letter-spacing: 1px;
+}
+.char-sub {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.5px;
+}
+
+/* --- ONLINE BADGE --- */
+.connection-badge {
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid transparent;
+}
+.connection-badge.connected {
+    background: rgba(52, 211, 153, 0.08);
+    border-color: rgba(52, 211, 153, 0.2);
+    color: #34d399;
+}
+.connection-badge.disconnected {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.combat-active-badge {
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: #ff4d4d;
+    padding: 6px 14px;
+    background: rgba(255, 77, 77, 0.1);
+    border: 1px solid rgba(255, 77, 77, 0.4);
+    border-radius: 20px;
+    animation: pd-combat-glow 1.5s infinite;
+}
+@keyframes pd-combat-glow {
+    0%, 100% { box-shadow: 0 0 5px rgba(255, 77, 77, 0.3); }
+    50%       { box-shadow: 0 0 15px rgba(255, 77, 77, 0.6); }
+}
+
+/* --- MY TURN ALERT --- */
+.my-turn-alert {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 50;
+    background: rgba(212, 175, 55, 0.95);
+    color: #0d0d1a;
+    font-family: 'Cinzel', serif;
+    font-size: 32px;
+    font-weight: 900;
+    padding: 18px 48px;
+    border-radius: 14px;
+    box-shadow: 0 0 60px rgba(212, 175, 55, 0.8);
+    letter-spacing: 4px;
+    pointer-events: none;
+    animation: pd-turn-pop-fade 3s forwards cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+@keyframes pd-turn-pop-fade {
+    0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+    10% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    80% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(0.95); opacity: 0; }
+}
+
+/* =========================================
+   STATS & SKILLS PLAYER DETAILS BOTTOM PANEL
+   ========================================= */
+.layer-bottom-menu .bottom-menu-content {
+    padding: 16px 24px;
+    height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    gap: 24px;
+    align-items: center;
+}
+
+.tab-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.tab-buttons .tab-btn {
+    width: 120px;
+    padding: 10px;
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 1px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+.tab-buttons .tab-btn:hover {
+    border-color: rgba(212, 175, 55, 0.4);
+    color: #fff;
+    background: rgba(212, 175, 55, 0.05);
+}
+.tab-buttons .tab-btn.active {
+    background: rgba(212, 175, 55, 0.15);
+    border-color: #d4af37;
+    color: #d4af37;
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.25);
+}
+
+.bottom-gallery {
+    flex: 1;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* 6 Stats Grid */
+.stats-bottom-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    height: 100%;
+    align-items: center;
+}
+.stat-bottom-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+.stat-bottom-card:hover {
+    border-color: rgba(212, 175, 55, 0.5);
+    background: rgba(212, 175, 55, 0.08);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(212, 175, 55, 0.15);
+}
+.stat-bottom-card.selected {
+    border-color: #d4af37;
+    background: rgba(212, 175, 55, 0.12);
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+}
+.sbc-abbr {
+    font-family: 'Cinzel', serif;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 1px;
+    margin-bottom: 2px;
+    transition: color 0.3s;
+}
+.stat-bottom-card:hover .sbc-abbr,
+.stat-bottom-card.selected .sbc-abbr {
+    color: #d4af37;
+}
+.sbc-score {
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.1;
+}
+.sbc-mod {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.4);
+    font-weight: 600;
+}
+.stat-bottom-card:hover .sbc-mod,
+.stat-bottom-card.selected .sbc-mod {
+    color: rgba(212, 175, 55, 0.8);
+}
+
+/* Skills Layout */
+.skills-bottom-wrapper {
+    display: flex;
+    gap: 16px;
+    height: 100%;
+    align-items: center;
+}
+.skill-stat-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    height: 100%;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.skill-stat-tab {
+    padding: 4px 8px;
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+.skill-stat-tab:hover {
+    color: #fff;
+    border-color: rgba(212, 175, 55, 0.3);
+}
+.skill-stat-tab.active {
+    background: rgba(212, 175, 55, 0.15);
+    color: #d4af37;
+    border-color: #d4af37;
+}
+
+.roll-stat-big-btn {
+    flex-shrink: 0;
+    width: 180px;
+    height: 90px;
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #d4af37 !important;
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.05), rgba(212, 175, 55, 0.15));
+    border: 1px solid rgba(212, 175, 55, 0.3) !important;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+.roll-stat-big-btn:hover {
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(212, 175, 55, 0.25));
+    border-color: #d4af37 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(212, 175, 55, 0.3);
+}
+.roll-stat-big-btn:active {
+    transform: translateY(0);
+}
+
+.skills-bottom-list {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    height: 100%;
+    overflow-y: auto;
+    align-content: center;
+    padding-right: 4px;
+}
+.skill-bottom-row {
+    width: calc(50% - 4px);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+.skill-bottom-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(212, 175, 55, 0.3);
+}
+.skill-bottom-row.proficient {
+    border-color: rgba(212, 175, 55, 0.2);
+    background: rgba(212, 175, 55, 0.03);
+}
+.prof-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
+}
+.prof-dot.active {
+    background: #d4af37;
+    border-color: #d4af37;
+    box-shadow: 0 0 6px #d4af37;
+}
+.skill-bottom-name {
+    flex: 1;
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.skill-bottom-row.proficient .skill-bottom-name {
+    color: #fff;
+    font-weight: 600;
+}
+.skill-bottom-bonus {
+    font-size: 13px;
+    font-weight: 700;
+    color: #d4af37;
+}
+
+/* ===================== SCROLLBAR ===================== */
+.sidebar-content::-webkit-scrollbar,
+.hud-content::-webkit-scrollbar,
+.log-messages::-webkit-scrollbar,
+.skills-bottom-list::-webkit-scrollbar { width: 5px; }
+.sidebar-content::-webkit-scrollbar-track,
+.hud-content::-webkit-scrollbar-track,
+.log-messages::-webkit-scrollbar-track,
+.skills-bottom-list::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+.sidebar-content::-webkit-scrollbar-thumb,
+.hud-content::-webkit-scrollbar-thumb,
+.log-messages::-webkit-scrollbar-thumb,
+.skills-bottom-list::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.3); border-radius: 10px; }
+
+/* ==================== COMPACT CHARACTER SHEETS ==================== */
+.compact-character-sheets {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(212, 175, 55, 0.16);
+    padding: 6px 12px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    margin-left: 10px;
+    /* Yatay genişleme için maksimum width artırıldı */
+    max-width: 700px;
+    flex-wrap: nowrap;
+}
+
+.compact-stats-grid {
+    display: grid;
+    /* 3 sütun × 2 satır → daha yatay */
+    grid-template-columns: repeat(3, 60px);
+    grid-template-rows: repeat(2, 26px);
+    gap: 4px;
+}
+
+.compact-stat-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 6px;
+    background: rgba(255, 255, 255, 0.02) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.compact-stat-card:hover {
+    border-color: rgba(212, 175, 55, 0.4) !important;
+    background: rgba(212, 175, 55, 0.08) !important;
+    transform: translateY(-1px);
+}
+
+.compact-stat-card.selected {
+    border-color: #d4af37 !important;
+    background: rgba(212, 175, 55, 0.14) !important;
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.25);
+}
+
+.csc-abbr {
+    font-family: 'Cinzel', serif;
+    font-size: 8px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.5px;
+    line-height: 1;
+}
+
+.compact-stat-card.selected .csc-abbr,
+.compact-stat-card:hover .csc-abbr {
+    color: #d4af37;
+}
+
+.csc-mod {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+}
+
+/* Dynamic Sol Yetenek Paneli */
+.compact-skills-panel {
+    display: flex;
+    flex-direction: column;
+    /* Genişletildi: daha fazla skill göster */
+    width: 200px;
+    height: 90px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    border-radius: 8px;
+    padding: 4px;
+    box-sizing: border-box;
+    animation: pd-fade-slide-left 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+@keyframes pd-fade-slide-left {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.csp-header {
+    font-family: 'Cinzel', serif;
+    font-size: 8px;
+    font-weight: 700;
+    color: #d4af37;
+    text-align: center;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.18);
+    padding-bottom: 2px;
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+}
+
+.csp-list {
+    display: flex;
+    /* Yatay: skills iki sütun olarak dizilsin */
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 3px;
+    overflow-y: auto;
+    flex: 1;
+    padding-right: 2px;
+    align-content: flex-start;
+}
+
+.csp-list::-webkit-scrollbar {
+    width: 3px;
+}
+.csp-list::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+}
+.csp-list::-webkit-scrollbar-thumb {
+    background: rgba(212, 175, 55, 0.3);
+    border-radius: 2px;
+}
+
+.csp-roll-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 3px 6px;
+    background: rgba(255, 255, 255, 0.02) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+    box-sizing: border-box;
+    /* Yatay düzende yarım genişlik */
+    width: calc(50% - 2px);
+    flex-shrink: 0;
+}
+
+.csp-roll-btn:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(212, 175, 55, 0.3) !important;
+}
+
+.csp-roll-btn.ability-check {
+    border-color: rgba(126, 200, 255, 0.22) !important;
+    background: rgba(126, 200, 255, 0.04) !important;
+}
+
+.csp-roll-btn.ability-check:hover {
+    border-color: rgba(126, 200, 255, 0.5) !important;
+    background: rgba(126, 200, 255, 0.1) !important;
+}
+
+.csp-roll-btn.proficient {
+    border-color: rgba(212, 175, 55, 0.15) !important;
+    background: rgba(212, 175, 55, 0.04) !important;
+}
+
+.csp-roll-btn.proficient:hover {
+    border-color: rgba(212, 175, 55, 0.4) !important;
+    background: rgba(212, 175, 55, 0.12) !important;
+}
+
+.csp-roll-name {
+    font-family: 'Exo 2', sans-serif;
+    font-size: 8px;
+    color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* Genişletilmiş panel için max-width artırıldı */
+    max-width: 120px;
+    flex: 1;
+}
+
+.csp-roll-btn.proficient .csp-roll-name {
+    color: #fff;
+    font-weight: 600;
+}
+
+.csp-roll-bonus {
+    font-size: 9px;
+    font-weight: 700;
+    color: #d4af37;
+}
+
+.csp-roll-btn.ability-check .csp-roll-bonus {
+    color: #7ec8ff;
+}
+
+.prof-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.prof-dot.active {
+    background: #d4af37;
+    border-color: #d4af37;
+    box-shadow: 0 0 4px #d4af37;
+}
+

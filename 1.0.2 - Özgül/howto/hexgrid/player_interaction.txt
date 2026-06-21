@@ -1,0 +1,14 @@
+Players should be able to:
+
+- View the active map
+- See visible terrain
+- See visible objects
+- Move their own token if safe to implement
+- Click/inspect visible objects
+- Pick up pickable objects
+
+Players must not see:
+
+- Hidden objects
+- GM-only notes
+- GM-only hidden terrain information
