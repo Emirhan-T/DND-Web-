@@ -1,0 +1,322 @@
+/* HostGame.css */
+
+.host-dashboard {
+    max-width: 900px !important;
+    min-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    padding: 30px 40px !important;
+}
+
+/* --- TOP BAR (Header & New Game Button) --- */
+.host-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 20px;
+    margin-bottom: 30px;
+}
+
+.host-title-area {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.back-arrow-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    font-size: 18px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.back-arrow-btn:hover {
+    background: rgba(212, 175, 55, 0.2);
+    border-color: #d4af37;
+    color: #d4af37;
+}
+
+.host-title-area h1 {
+
+    font-size: 28px;
+    color: #d4af37;
+    margin: 0;
+    text-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+}
+
+.new-game-btn {
+    background-color: #fff;
+    color: #333;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    transition: 0.3s;
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+}
+
+.new-game-btn:hover {
+    background-color: #ddd;
+    transform: translateY(-2px);
+}
+
+/* --- CENTER AREA: CAMPAIGN LIST --- */
+.campaign-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.campaign-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 4px solid #d4af37;
+    border-radius: 10px;
+    padding: 20px 25px;
+    transition: 0.3s;
+}
+
+.campaign-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(212, 175, 55, 0.3);
+}
+
+.camp-main-info h3 {
+    margin: 0 0 5px 0;
+
+    color: #fff;
+    font-size: 20px;
+    letter-spacing: 1px;
+}
+
+.camp-main-info span {
+    font-family: 'Exo 2', sans-serif;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+}
+
+.camp-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.info-btn, .delete-btn {
+    background: transparent;
+    padding: 6px 15px;
+    border-radius: 6px;
+    font-family: 'Exo 2', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.info-btn {
+    color: #7ec8ff;
+    border: 1px solid rgba(126, 200, 255, 0.3);
+}
+
+.info-btn:hover {
+    background: rgba(126, 200, 255, 0.15);
+    border-color: #7ec8ff;
+}
+
+.delete-btn {
+    color: #ff4d4d;
+    border: 1px solid rgba(255, 77, 77, 0.3);
+}
+
+.delete-btn:hover {
+    background: rgba(255, 77, 77, 0.15);
+    border-color: #ff4d4d;
+}
+
+.empty-state {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+    font-style: italic;
+    font-family: 'Exo 2', sans-serif;
+    padding: 40px;
+}
+
+/* ==========================================
+   MODALS (Pop-ups)
+   ========================================== */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: rgba(20, 20, 20, 0.95);
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    border-radius: 16px;
+    padding: 30px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+.modal-content h2 {
+    font-family: 'Cinzel', serif;
+    color: #d4af37;
+    margin: 0 0 20px 0;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+    padding-bottom: 10px;
+}
+
+/* Modal Inputs */
+.host-input-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 15px;
+}
+
+.host-input-group label {
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 5px;
+    letter-spacing: 1px;
+}
+
+.host-input-group input, .host-input-group textarea {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: #fff;
+    padding: 10px;
+    font-family: 'Exo 2', sans-serif;
+    outline: none;
+    transition: 0.3s;
+}
+
+.host-input-group textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.host-input-group input:focus, .host-input-group textarea:focus {
+    border-color: #d4af37;
+}
+
+/* Info Detail Box */
+.info-detail {
+    font-family: 'Exo 2', sans-serif;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 14px;
+    margin-bottom: 10px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 6px;
+}
+
+.info-detail strong {
+    color: #d4af37;
+    font-family: 'Cinzel', serif;
+    margin-right: 8px;
+}
+
+.highlight-code {
+    background: rgba(212, 175, 55, 0.15);
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 2px;
+    font-weight: bold;
+}
+
+.desc-box p {
+    margin: 5px 0 0 0;
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1.5;
+    font-style: italic;
+}
+
+/* Warning Modal */
+.warning-modal p {
+    color: rgba(255, 255, 255, 0.8);
+    font-family: 'Exo 2', sans-serif;
+}
+.warning-text {
+    color: #ff4d4d !important;
+    font-size: 12px;
+    margin-top: 15px;
+}
+
+/* Modal Actions */
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 25px;
+}
+
+.center-action {
+    justify-content: center;
+}
+
+.modal-cancel-btn {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.5);
+    border: none;
+    font-family: 'Cinzel', serif;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.modal-cancel-btn:hover { color: #fff; }
+
+.modal-confirm-btn {
+    background: rgba(212, 175, 55, 0.15);
+    color: #d4af37;
+    border: 1px solid #d4af37;
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-family: 'Cinzel', serif;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.modal-confirm-btn:hover {
+    background: #d4af37;
+    color: #000;
+}
+
+.modal-delete-btn {
+    background: rgba(255, 77, 77, 0.15);
+    color: #ff4d4d;
+    border: 1px solid #ff4d4d;
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-family: 'Cinzel', serif;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.modal-delete-btn:hover {
+    background: #ff4d4d;
+    color: #fff;
+}

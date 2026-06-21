@@ -1,0 +1,22 @@
+Support map tokens for:
+
+- Player characters
+- NPCs
+- Monsters
+
+Each token should support:
+
+{
+  id,
+  characterId,
+  ownerId,
+  name,
+  type,
+  q,
+  r,
+  visibleToPlayers
+}
+
+If the project already has character/player IDs, use them.
+
+If you are unsure how to connect tokens to existing users or characters, ask me first.

@@ -1,0 +1,49 @@
+prepare the map system so that future AI-generated JSON can be inserted.
+
+Use a structure like:
+
+{
+  campaignId,
+  mapName,
+  width,
+  height,
+  hexes: [
+    {
+      q,
+      r,
+      terrain,
+      walkable,
+      movementCost,
+      visibleToPlayers
+    }
+  ],
+  objects: [
+    {
+      id,
+      type,
+      name,
+      q,
+      r,
+      movable,
+      pickable,
+      blocksMovement,
+      visibleToPlayers,
+      contains
+    }
+  ],
+  tokens: [
+    {
+      id,
+      characterId,
+      ownerId,
+      name,
+      type,
+      q,
+      r,
+      visibleToPlayers
+    }
+  ],
+  gmNotes,
+  playerDescription,
+  backgroundImageUrl
+}

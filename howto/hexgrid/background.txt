@@ -1,0 +1,7 @@
+Prepare optional background image support for later.
+
+The map renderer should be able to display a future background image behind the hex grid.
+
+The hex grid, tokens, and objects must remain the interactive source of truth.
+
+The API call will be used to generate or pull online images here.

@@ -1,0 +1,376 @@
+openapi: 3.0.3
+info:
+  title: DnD Web — Back-End API
+  description: >
+    DnD Web (Sanal Masaüstü / VTT) uygulamasının REST API'si.
+    Kimlik doğrulama JWT (Bearer) ile yapılır. Gerçek zamanlı olaylar
+    (Socket.IO) bu spesifikasyonun dışındadır; rapor ve PDF dokümantasyonunda
+    ayrıca belgelenmiştir.
+  version: 1.0.0
+servers:
+  - url: http://localhost:5001/api
+    description: Yerel geliştirme sunucusu
+tags:
+  - name: Auth
+    description: Kimlik doğrulama ve şifre işlemleri
+  - name: Characters
+    description: D&D karakter yönetimi
+  - name: Games
+    description: Oyun/kampanya ve hex harita yönetimi
+  - name: AI
+    description: Yapay zekâ ile görsel üretimi
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Message:
+      type: object
+      properties:
+        message: { type: string }
+    AuthLoginResponse:
+      type: object
+      properties:
+        message: { type: string }
+        token: { type: string, description: JWT erişim belirteci }
+    Character:
+      type: object
+      properties:
+        _id: { type: string }
+        userId: { type: string }
+        name: { type: string }
+        level: { type: integer }
+        species: { type: string }
+        charClass: { type: string }
+        stats: { type: object }
+        maxHp: { type: integer }
+        currentHp: { type: integer }
+        armorClass: { type: integer }
+        speed: { type: integer }
+        weapons: { type: array, items: { type: object } }
+        spells: { type: array, items: { type: object } }
+        inventory: { type: array, items: { type: object } }
+    Game:
+      type: object
+      properties:
+        gameCode: { type: string }
+        gmId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        isActive: { type: boolean }
+        players:
+          type: array
+          items:
+            type: object
+            properties:
+              userId: { type: string }
+              characterId: { type: string }
+              playerName: { type: string }
+              characterName: { type: string }
+        map: { type: object, nullable: true }
+    HexMap:
+      type: object
+      properties:
+        width: { type: integer }
+        height: { type: integer }
+        hexes: { type: array, items: { type: object } }
+        objects: { type: array, items: { type: object } }
+        tokens: { type: array, items: { type: object } }
+        backgroundImageUrl: { type: string, nullable: true }
+        hexConfig: { type: object }
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Yeni kullanıcı kaydı
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '201': { description: Kullanıcı oluşturuldu, content: { application/json: { schema: { $ref: '#/components/schemas/Message' } } } }
+        '400': { description: Eksik alan veya e-posta zaten kullanımda }
+        '500': { description: Sunucu hatası }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Giriş ve JWT alma
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+                rememberMe: { type: boolean }
+      responses:
+        '200': { description: Giriş başarılı, content: { application/json: { schema: { $ref: '#/components/schemas/AuthLoginResponse' } } } }
+        '400': { description: Kullanıcı bulunamadı veya hatalı şifre }
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Şifre sıfırlama maili gönder
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string }
+      responses:
+        '200': { description: Sıfırlama maili gönderildi }
+        '404': { description: E-posta kayıtlı değil }
+
+  /auth/reset-password/{token}:
+    put:
+      tags: [Auth]
+      summary: Yeni şifre belirle
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+          description: E-posta ile gönderilen sıfırlama kodu
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        '200': { description: Şifre güncellendi }
+        '400': { description: Geçersiz veya süresi dolmuş token }
+
+  /characters:
+    post:
+      tags: [Characters]
+      summary: Yeni karakter oluştur
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Character' }
+      responses:
+        '201': { description: Oluşturuldu, content: { application/json: { schema: { $ref: '#/components/schemas/Character' } } } }
+        '500': { description: Sunucu hatası }
+    get:
+      tags: [Characters]
+      summary: Kullanıcının karakterlerini listele
+      responses:
+        '200':
+          description: Karakter listesi
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Character' } }
+
+  /characters/{id}:
+    put:
+      tags: [Characters]
+      summary: Karakteri güncelle
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Character' }
+      responses:
+        '200': { description: Güncellendi }
+        '404': { description: Bulunamadı veya erişim reddedildi }
+    delete:
+      tags: [Characters]
+      summary: Karakteri sil
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Silindi }
+        '404': { description: Bulunamadı }
+
+  /games/host:
+    post:
+      tags: [Games]
+      summary: Yeni oyun (kampanya) oluştur
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+      responses:
+        '201':
+          description: Oyun oluşturuldu
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gameCode: { type: string }
+                  gameId: { type: string }
+
+  /games/join/{gameCode}:
+    get:
+      tags: [Games]
+      summary: Oyun kodunu doğrula
+      parameters:
+        - { name: gameCode, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Geçerli oyun
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gameCode: { type: string }
+                  gameName: { type: string }
+                  playerCount: { type: integer }
+        '404': { description: Oyun bulunamadı veya pasif }
+    post:
+      tags: [Games]
+      summary: Oyuna katıl
+      parameters:
+        - { name: gameCode, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                characterId: { type: string }
+                playerName: { type: string }
+                characterName: { type: string }
+      responses:
+        '200': { description: Katılım başarılı }
+        '404': { description: Oyun bulunamadı }
+
+  /games/code/{gameCode}:
+    get:
+      tags: [Games]
+      summary: Oyun ayrıntıları (karakterler populate edilmiş)
+      parameters:
+        - { name: gameCode, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Oyun belgesi, content: { application/json: { schema: { $ref: '#/components/schemas/Game' } } } }
+        '404': { description: Oyun bulunamadı }
+
+  /games/{gameCode}/map:
+    get:
+      tags: [Games]
+      summary: Hex haritayı getir
+      parameters:
+        - { name: gameCode, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Harita (yoksa null)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  map: { $ref: '#/components/schemas/HexMap' }
+        '404': { description: Oyun bulunamadı }
+    put:
+      tags: [Games]
+      summary: Hex haritayı kaydet (yalnızca GM)
+      parameters:
+        - { name: gameCode, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                map: { $ref: '#/components/schemas/HexMap' }
+      responses:
+        '200': { description: Kaydedildi }
+        '403': { description: Yalnızca GM değiştirebilir }
+        '404': { description: Oyun bulunamadı }
+
+  /games/my-games:
+    get:
+      tags: [Games]
+      summary: GM'in oyunlarını listele
+      responses:
+        '200':
+          description: Oyun listesi
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Game' } }
+
+  /games/{id}:
+    delete:
+      tags: [Games]
+      summary: Kampanyayı sil
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Silindi }
+        '404': { description: Bulunamadı }
+
+  /ai/generate-background:
+    post:
+      tags: [AI]
+      summary: Prompttan AI arka plan görseli üret
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt: { type: string }
+                style: { type: string, enum: [painterly, realistic, gritty, vibrant] }
+                lighting: { type: string, enum: [day, dusk, night, torchlit] }
+                size: { type: string, example: 1536x1024 }
+      responses:
+        '200':
+          description: Görsel üretildi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  url: { type: string }
+        '400': { description: Prompt gerekli }
+        '501': { description: OPENAI_API_KEY ayarlı değil }
+        '502': { description: Sağlayıcı/iletişim hatası }
+
+  /ai/generate-map:
+    post:
+      tags: [AI]
+      summary: Prompttan harita verisi (WIP — uygulanmadı)
+      responses:
+        '501': { description: Uygulanmadı (work in progress) }
